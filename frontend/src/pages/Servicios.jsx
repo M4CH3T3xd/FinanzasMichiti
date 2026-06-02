@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { format } from 'date-fns'
 import {
   Plus, X, Trash2, Tag, Tv, Music, Wifi, Phone, Zap, Flame,
@@ -340,6 +341,87 @@ function PagoModal({ servicio, onConfirm, onClose, saving }) {
   )
 }
 
+// ── Dropdown nueva categoría via portal ──────────────────────────────────────
+function NewCatDropdown({ anchorRef, open, onClose, onCrear }) {
+  const [name,  setName]  = useState('')
+  const [icon,  setIcon]  = useState('tag')
+  const [color, setColor] = useState('#7c6af7')
+  const [pos,   setPos]   = useState({ top: 0, left: 0, width: 0 })
+
+  const COLOR_OPTIONS = ['#e11d48','#f97316','#f59e0b','#84cc16','#10b981','#06b6d4','#3b82f6','#8b5cf6','#ec4899','#7c6af7','#64748b','#94a3b8']
+
+  useEffect(() => {
+    if (open && anchorRef.current) {
+      const r = anchorRef.current.getBoundingClientRect()
+      setPos({ top: r.bottom + 6, left: r.left })
+    }
+  }, [open])
+
+  const handleCrear = () => {
+    const n = name.trim()
+    if (!n) return
+    onCrear({ name: n, icon, color })
+    setName(''); setIcon('tag'); setColor('#7c6af7')
+  }
+
+  if (!open) return null
+
+  return createPortal(
+    <>
+      <div className="fixed inset-0 z-[998]" onClick={onClose} />
+      <div
+        className="dropdown-bouncy fixed z-[999] bg-panel border border-line rounded-xl shadow-2xl p-3 w-72 space-y-3"
+        style={{ top: pos.top, left: pos.left }}
+      >
+        <input
+          type="text" placeholder="Nombre de la categoría"
+          value={name} onChange={e => setName(e.target.value)}
+          autoFocus
+          className="w-full bg-well border border-line rounded-lg px-3 py-2 text-sm text-ink placeholder-dim focus:outline-none focus:border-brand-500"
+        />
+        <div>
+          <p className="text-xs text-dim mb-1.5">Ícono</p>
+          <div className="flex flex-wrap gap-1.5">
+            {SERVICE_ICONS.map(({ key, Icon: I }) => (
+              <button key={key} type="button" onClick={() => setIcon(key)}
+                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                  icon === key
+                    ? 'bg-brand-500/20 text-brand-500 border border-brand-500/50'
+                    : 'bg-well border border-line text-dim hover:text-ink'
+                }`}
+              >
+                <I size={14} />
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <p className="text-xs text-dim mb-1.5">Color</p>
+          <div className="flex flex-wrap gap-2">
+            {COLOR_OPTIONS.map(c => (
+              <button key={c} type="button" onClick={() => setColor(c)}
+                className={`w-6 h-6 rounded-full transition-transform ${color === c ? 'scale-125 ring-2 ring-offset-1 ring-offset-panel' : 'hover:scale-110'}`}
+                style={{ background: c }}
+              />
+            ))}
+          </div>
+        </div>
+        <div className="flex gap-2 justify-end pt-1">
+          <button type="button" onClick={onClose}
+            className="px-3 py-1.5 text-xs text-dim bg-well border border-line rounded-lg hover:text-ink">
+            Cancelar
+          </button>
+          <button type="button" onClick={handleCrear} disabled={!name.trim()}
+            className="px-3 py-1.5 text-xs text-white bg-brand-500 rounded-lg hover:bg-brand-600 disabled:opacity-50">
+            Crear
+          </button>
+        </div>
+      </div>
+    </>,
+    document.body
+  )
+}
+
 // ── Modal editar/crear servicio ───────────────────────────────────────────────
 function ServicioModal({ servicio, onSave, onDelete, onClose, saving, deleting }) {
   const initialCat = servicio?.categoria
@@ -357,9 +439,7 @@ function ServicioModal({ servicio, onSave, onDelete, onClose, saving, deleting }
   // Categorías custom del usuario
   const [customCats,  setCustomCats]  = useState(() => getCustomServiceCats())
   const [showNewCat,  setShowNewCat]  = useState(false)
-  const [newCatName,  setNewCatName]  = useState('')
-  const [newCatIcon,  setNewCatIcon]  = useState('tag')
-  const [newCatColor, setNewCatColor] = useState('#7c6af7')
+  const nuevaBtnRef = useRef(null)
 
   const allCats = [...DEFAULT_SERVICE_CATS, ...customCats.filter(c => !DEFAULT_SERVICE_CATS.find(d => d.name === c.name))]
   const catActual = allCats.find(c => c.name === categoria) ?? allCats[0]
@@ -369,14 +449,11 @@ function ServicioModal({ servicio, onSave, onDelete, onClose, saving, deleting }
     setIcono(cat.icon)
   }
 
-  const handleCreateCat = () => {
-    const name = newCatName.trim()
-    if (!name) return
-    const cat = { name, icon: newCatIcon, color: newCatColor }
+  const handleCreateCat = ({ name, icon, color }) => {
+    const cat = { name, icon, color }
     saveCustomServiceCat(cat)
     setCustomCats(getCustomServiceCats())
     handleSelectCat(cat)
-    setNewCatName('')
     setShowNewCat(false)
   }
 
@@ -393,8 +470,6 @@ function ServicioModal({ servicio, onSave, onDelete, onClose, saving, deleting }
       activo,
     })
   }
-
-  const COLOR_OPTIONS = ['#e11d48','#f97316','#f59e0b','#84cc16','#10b981','#06b6d4','#3b82f6','#8b5cf6','#ec4899','#7c6af7','#64748b','#94a3b8']
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
@@ -450,71 +525,26 @@ function ServicioModal({ servicio, onSave, onDelete, onClose, saving, deleting }
                 )
               })}
 
-              {/* Botón Nueva + dropdown flotante */}
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setShowNewCat(v => !v)}
-                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs border transition-colors ${
-                    showNewCat
-                      ? 'border-brand-500 bg-brand-500/10 text-brand-500'
-                      : 'border-dashed border-line text-dim hover:border-brand-500/40 hover:text-ink'
-                  }`}
-                >
-                  <Plus size={11} /> Nueva
-                </button>
+              {/* Botón Nueva */}
+              <button
+                ref={nuevaBtnRef}
+                type="button"
+                onClick={() => setShowNewCat(v => !v)}
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs border transition-colors ${
+                  showNewCat
+                    ? 'border-brand-500 bg-brand-500/10 text-brand-500'
+                    : 'border-dashed border-line text-dim hover:border-brand-500/40 hover:text-ink'
+                }`}
+              >
+                <Plus size={11} /> Nueva
+              </button>
 
-                {showNewCat && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setShowNewCat(false)} />
-                    <div className="dropdown-bouncy absolute left-0 top-full mt-1 z-20 bg-panel border border-line rounded-xl shadow-xl p-3 w-72 space-y-3">
-                      <input
-                        type="text" placeholder="Nombre de la categoría"
-                        value={newCatName} onChange={e => setNewCatName(e.target.value)}
-                        autoFocus
-                        className="w-full bg-well border border-line rounded-lg px-3 py-2 text-sm text-ink placeholder-dim focus:outline-none focus:border-brand-500"
-                      />
-                      <div>
-                        <p className="text-xs text-dim mb-1.5">Ícono</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {SERVICE_ICONS.map(({ key, Icon: I }) => (
-                            <button key={key} type="button" onClick={() => setNewCatIcon(key)}
-                              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
-                                newCatIcon === key
-                                  ? 'bg-brand-500/20 text-brand-500 border border-brand-500/50'
-                                  : 'bg-well border border-line text-dim hover:text-ink'
-                              }`}
-                            >
-                              <I size={14} />
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <p className="text-xs text-dim mb-1.5">Color</p>
-                        <div className="flex flex-wrap gap-2">
-                          {COLOR_OPTIONS.map(c => (
-                            <button key={c} type="button" onClick={() => setNewCatColor(c)}
-                              className={`w-6 h-6 rounded-full transition-transform ${newCatColor === c ? 'scale-125 ring-2 ring-offset-1 ring-offset-panel' : 'hover:scale-110'}`}
-                              style={{ background: c }}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                      <div className="flex gap-2 justify-end pt-1">
-                        <button type="button" onClick={() => setShowNewCat(false)}
-                          className="px-3 py-1.5 text-xs text-dim bg-well border border-line rounded-lg hover:text-ink">
-                          Cancelar
-                        </button>
-                        <button type="button" onClick={handleCreateCat} disabled={!newCatName.trim()}
-                          className="px-3 py-1.5 text-xs text-white bg-brand-500 rounded-lg hover:bg-brand-600 disabled:opacity-50">
-                          Crear
-                        </button>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
+              <NewCatDropdown
+                anchorRef={nuevaBtnRef}
+                open={showNewCat}
+                onClose={() => setShowNewCat(false)}
+                onCrear={handleCreateCat}
+              />
             </div>
           </div>
 

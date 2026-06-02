@@ -1,11 +1,20 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns'
+import { es } from 'date-fns/locale'
 import Cropper from 'react-easy-crop'
-import { User, Camera, Save, RefreshCw, LogOut, AlertTriangle, X, ZoomIn, ZoomOut } from 'lucide-react'
-import { useProfile, useUpdateProfile } from '../hooks/queries'
+import { User, Camera, Save, RefreshCw, LogOut, AlertTriangle, X, ZoomIn, ZoomOut, TrendingUp, TrendingDown, Wallet } from 'lucide-react'
+import { useProfile, useUpdateProfile, useTransacciones } from '../hooks/queries'
 import { useAuth } from '../context/AuthContext'
 import { useCurrency, CURRENCIES } from '../context/CurrencyContext'
 import { useToast } from '../context/ToastContext'
+import { getCategoryMeta } from '../lib/categoryMeta'
 import { supabase } from '../lib/supabase'
+
+const now        = new Date()
+const mesFrom    = format(startOfMonth(now), 'yyyy-MM-dd')
+const mesTo      = format(endOfMonth(now),   'yyyy-MM-dd')
+const mesAntFrom = format(startOfMonth(subMonths(now, 1)), 'yyyy-MM-dd')
+const mesAntTo   = format(endOfMonth(subMonths(now, 1)),   'yyyy-MM-dd')
 
 export default function Perfil() {
   const { user, logout } = useAuth()
@@ -13,6 +22,25 @@ export default function Perfil() {
   const { currency, setCurrency } = useCurrency()
   const { data: profile } = useProfile()
   const updateMut = useUpdateProfile()
+
+  const { data: txMes    = [] } = useTransacciones({ from: mesFrom,    to: mesTo    })
+  const { data: txAntMes = [] } = useTransacciones({ from: mesAntFrom, to: mesAntTo })
+
+  const resumen = useMemo(() => {
+    const ingresos  = txMes.filter(t => t.tipo === 'ingreso').reduce((s, t) => s + +t.monto, 0)
+    const gastos    = txMes.filter(t => t.tipo === 'gasto').reduce((s, t)   => s + +t.monto, 0)
+    const gastosAnt = txAntMes.filter(t => t.tipo === 'gasto').reduce((s, t) => s + +t.monto, 0)
+    const balance   = ingresos - gastos
+    const pctVsMes  = gastosAnt > 0 ? ((gastos - gastosAnt) / gastosAnt * 100).toFixed(0) : null
+
+    const catMap = {}
+    txMes.filter(t => t.tipo === 'gasto').forEach(t => {
+      catMap[t.categoria] = (catMap[t.categoria] || 0) + +t.monto
+    })
+    const topCat = Object.entries(catMap).sort((a, b) => b[1] - a[1])[0]
+
+    return { ingresos, gastos, balance, pctVsMes, topCat, count: txMes.length }
+  }, [txMes, txAntMes])
 
   const [nombre, setNombre] = useState('')
   const [apodo,  setApodo]  = useState('')
@@ -204,6 +232,67 @@ export default function Perfil() {
                 <span className="text-xs text-dim">{c.symbol}</span>
               </button>
             ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Resumen mensual */}
+      <div className="bg-panel border border-line rounded-2xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-line">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-ink">
+              Resumen de {format(now, 'MMMM', { locale: es }).replace(/^\w/, c => c.toUpperCase())}
+            </h2>
+            <span className="text-xs text-dim">{resumen.count} movimiento{resumen.count !== 1 ? 's' : ''}</span>
+          </div>
+        </div>
+        <div className="p-5 space-y-4">
+          {/* 3 stats */}
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: 'Ingresos', value: resumen.ingresos, icon: TrendingUp,   color: 'text-income',  bg: 'bg-income/10'  },
+              { label: 'Gastos',   value: resumen.gastos,   icon: TrendingDown, color: 'text-expense', bg: 'bg-expense/10' },
+              { label: 'Balance',  value: resumen.balance,  icon: Wallet,
+                color: resumen.balance >= 0 ? 'text-income' : 'text-expense',
+                bg:    resumen.balance >= 0 ? 'bg-income/10' : 'bg-expense/10' },
+            ].map(({ label, value, icon: Icon, color, bg }) => (
+              <div key={label} className="text-center">
+                <div className={`w-8 h-8 rounded-lg ${bg} ${color} flex items-center justify-center mx-auto mb-1.5`}>
+                  <Icon size={15} />
+                </div>
+                <p className="text-[10px] text-dim">{label}</p>
+                <p className={`text-xs font-bold ${color}`}>{fmt(value)}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Top categoría + comparación */}
+          <div className="flex items-center justify-between pt-3 border-t border-line">
+            {resumen.topCat ? (() => {
+              const meta = getCategoryMeta(resumen.topCat[0])
+              const Icon = meta.icon
+              return (
+                <div className="flex items-center gap-2">
+                  <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                    style={{ background: meta.color + '22', color: meta.color }}>
+                    <Icon size={13} />
+                  </span>
+                  <div>
+                    <p className="text-[10px] text-dim">Top categoría</p>
+                    <p className="text-xs font-medium text-ink">{resumen.topCat[0]}</p>
+                  </div>
+                </div>
+              )
+            })() : <span className="text-xs text-dim">Sin gastos este mes</span>}
+
+            {resumen.pctVsMes !== null && (
+              <div className="text-right">
+                <p className="text-[10px] text-dim">vs mes anterior</p>
+                <p className={`text-xs font-semibold ${+resumen.pctVsMes > 0 ? 'text-expense' : 'text-income'}`}>
+                  {+resumen.pctVsMes > 0 ? '+' : ''}{resumen.pctVsMes}%
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>

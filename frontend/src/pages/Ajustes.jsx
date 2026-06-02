@@ -98,7 +98,7 @@ export default function Ajustes() {
         <SettingRow
           icon={isPrivate ? EyeOff : Eye}
           title="Modo privacidad"
-          description={isPrivate ? 'Montos ocultos — tocá para mostrar' : 'Oculta todos los montos de la app'}
+          description={isPrivate ? 'Montos ocultos — toca para mostrar' : 'Oculta todos los montos de la app'}
         >
           <Toggle enabled={isPrivate} onChange={togglePrivacy} />
         </SettingRow>

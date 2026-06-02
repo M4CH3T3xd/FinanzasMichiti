@@ -138,7 +138,7 @@ export default function Admin() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-sm font-medium text-ink truncate">
                       {p.nombre || p.apodo || p.email?.split('@')[0] || 'Sin nombre'}
-                      {isMe && <span className="text-[10px] text-brand-500 ml-1">(vos)</span>}
+                      {isMe && <span className="text-[10px] text-brand-500 ml-1">(tú)</span>}
                     </p>
                     <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${
                       isAdminP

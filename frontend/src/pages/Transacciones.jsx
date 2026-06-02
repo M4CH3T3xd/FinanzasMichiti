@@ -69,6 +69,10 @@ export default function Transacciones() {
         toast('Transacción actualizada', 'success')
       } else {
         await addMut.mutateAsync(data)
+        // Navegar al mes de la transacción y limpiar filtros para que sea visible
+        setMes(new Date(data.fecha + 'T00:00:00'))
+        setTipo(null)
+        setCat('')
         toast('Transacción agregada', 'success')
       }
       setModal(null)
@@ -114,7 +118,13 @@ export default function Transacciones() {
                 <CheckSquare size={18} />
               </button>
               <button
-                onClick={() => setModal({ tx: null })}
+                onClick={() => {
+                  const isCurrent = format(mes, 'yyyy-MM') === format(new Date(), 'yyyy-MM')
+                  const defaultDate = isCurrent
+                    ? format(new Date(), 'yyyy-MM-dd')
+                    : format(startOfMonth(mes), 'yyyy-MM-dd')
+                  setModal({ tx: null, defaultDate })
+                }}
                 className="flex items-center gap-1.5 px-3 py-2 bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium rounded-lg transition-colors"
               >
                 <Plus size={16} /> Nueva
@@ -267,6 +277,7 @@ export default function Transacciones() {
       {modal && (
         <TransaccionModal
           tx={modal.tx}
+          defaultDate={modal.defaultDate}
           onSave={handleSave}
           onClose={() => setModal(null)}
           saving={addMut.isPending || updateMut.isPending}
@@ -277,12 +288,12 @@ export default function Transacciones() {
 }
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
-function TransaccionModal({ tx, onSave, onClose, saving }) {
+function TransaccionModal({ tx, defaultDate, onSave, onClose, saving }) {
   const [tipo,  setTipo]  = useState(tx?.tipo || 'gasto')
   const [monto, setMonto] = useState(tx?.monto?.toString() || '')
   const [cat,   setCat]   = useState(tx?.categoria   || '')
   const [desc,  setDesc]  = useState(tx?.descripcion || '')
-  const [fecha, setFecha] = useState(tx?.fecha || format(new Date(), 'yyyy-MM-dd'))
+  const [fecha, setFecha] = useState(tx?.fecha || defaultDate || format(new Date(), 'yyyy-MM-dd'))
 
   const cats = tipo === 'ingreso' ? DEFAULT_CATEGORIES_INCOME : DEFAULT_CATEGORIES_EXPENSE
 

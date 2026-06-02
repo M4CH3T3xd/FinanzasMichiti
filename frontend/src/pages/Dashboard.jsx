@@ -10,6 +10,7 @@ import {
 import { useTransacciones, usePresupuestos, useServicios } from '../hooks/queries'
 import { useCurrency } from '../context/CurrencyContext'
 import { useSettings } from '../context/SettingsContext'
+import { getServiceIcon, getServiceCatMeta } from '../lib/serviceMeta'
 import { getCategoryMeta } from '../lib/categoryMeta'
 import { daysUntilDue, isPaidThisMonth } from '../utils/serviceDates'
 
@@ -191,14 +192,15 @@ export default function Dashboard() {
 
               {/* Dona */}
               {chartType === 'dona' && donaData.length > 0 && (
-                <div className="flex flex-col sm:flex-row items-center gap-4">
-                  <div className="w-full sm:w-52 h-48 shrink-0">
+                <div className="flex flex-col sm:flex-row items-start gap-4">
+                  {/* Gráfico fijo */}
+                  <div className="w-40 h-40 shrink-0 mx-auto sm:mx-0">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
                           data={donaData}
                           cx="50%" cy="50%"
-                          innerRadius={55} outerRadius={85}
+                          innerRadius={44} outerRadius={68}
                           paddingAngle={3}
                           dataKey="value"
                         >
@@ -215,20 +217,24 @@ export default function Dashboard() {
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
-                  <div className="flex flex-col gap-2 w-full">
+                  {/* Leyenda en 2 columnas — altura fija sin importar cuántas categorías */}
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-3 w-full content-start">
                     {donaData.map(entry => {
                       const meta = getCategoryMeta(entry.name)
-                      const pct = gastos > 0 ? (entry.value / gastos * 100).toFixed(0) : 0
+                      const pct  = gastos > 0 ? (entry.value / gastos * 100) : 0
                       return (
-                        <div key={entry.name} className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: meta.color }} />
-                            <span className="text-sm text-ink truncate">{entry.name}</span>
+                        <div key={entry.name}>
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: meta.color }} />
+                              <span className="text-xs text-ink truncate">{entry.name}</span>
+                            </div>
+                            <span className="text-[10px] text-dim shrink-0 ml-1">{pct.toFixed(0)}%</span>
                           </div>
-                          <div className="flex items-center gap-3 shrink-0">
-                            <span className="text-xs text-dim">{pct}%</span>
-                            <span className="text-sm font-medium text-ink">{fmt(entry.value)}</span>
+                          <div className="h-1 bg-well rounded-full overflow-hidden mb-1">
+                            <div className="h-full rounded-full" style={{ width: `${pct}%`, background: meta.color }} />
                           </div>
+                          <span className="text-xs font-medium text-ink">{fmt(entry.value)}</span>
                         </div>
                       )
                     })}
@@ -328,24 +334,30 @@ export default function Dashboard() {
               ? <p className="text-dim text-sm text-center py-4">Sin vencimientos en 7 días</p>
               : (
                 <div className="space-y-3">
-                  {serviciosProximos.map(s => (
-                    <div key={s.id} className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-lg">{s.icono || '📋'}</span>
-                        <div className="min-w-0">
+                  {serviciosProximos.map(s => {
+                    const catMeta = getServiceCatMeta(s.categoria)
+                    const Icon    = getServiceIcon(s.icono || catMeta.icon)
+                    const color   = catMeta.color
+                    return (
+                      <div key={s.id} className="flex items-center gap-2.5">
+                        <span className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                          style={{ background: color + '22', color }}>
+                          <Icon size={15} />
+                        </span>
+                        <div className="flex-1 min-w-0">
                           <p className="text-sm text-ink truncate">{s.nombre}</p>
                           <p className="text-xs text-dim">{fmt(s.monto)}</p>
                         </div>
+                        <span className={`text-xs font-semibold px-2 py-1 rounded-full shrink-0 ${
+                          s.dias === 0 ? 'bg-expense/20 text-expense' :
+                          s.dias <= 2  ? 'bg-yellow-500/20 text-yellow-400' :
+                                         'bg-brand-500/20 text-brand-500'
+                        }`}>
+                          {s.dias === 0 ? 'hoy' : `${s.dias}d`}
+                        </span>
                       </div>
-                      <span className={`text-xs font-semibold px-2 py-1 rounded-full flex-shrink-0 ${
-                        s.dias === 0 ? 'bg-expense/20 text-expense' :
-                        s.dias <= 2  ? 'bg-yellow-500/20 text-yellow-400' :
-                                       'bg-brand-500/20 text-brand-500'
-                      }`}>
-                        {s.dias === 0 ? 'hoy' : `${s.dias}d`}
-                      </span>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )
             }
@@ -361,13 +373,20 @@ export default function Dashboard() {
               <div className="space-y-4">
                 {presupuestosCriticos.map(p => {
                   const meta  = getCategoryMeta(p.categoria)
+                  const Icon  = meta.icon
                   const pctCl = Math.min(p.pct, 100)
                   const color = p.pct >= 90 ? 'var(--expense)' : p.pct >= 70 ? '#eab308' : meta.color
                   return (
                     <div key={p.id}>
-                      <div className="flex justify-between text-xs mb-1">
-                        <span className="text-ink">{p.categoria}</span>
-                        <span style={{ color }}>{Math.round(p.pct)}%</span>
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <span className="text-xs text-ink truncate">{p.categoria}</span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-xs font-medium" style={{ color }}>{Math.round(p.pct)}%</span>
+                          <span className="w-6 h-6 rounded-md flex items-center justify-center"
+                            style={{ background: color + '22', color }}>
+                            <Icon size={12} />
+                          </span>
+                        </div>
                       </div>
                       <div className="h-1.5 bg-well rounded-full overflow-hidden">
                         <div

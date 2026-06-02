@@ -1,9 +1,13 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { format, startOfMonth, endOfMonth, subMonths, isToday, isYesterday } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Link } from 'react-router-dom'
 import { TrendingUp, TrendingDown, Wallet, ArrowRight, Clock, AlertTriangle } from 'lucide-react'
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
+import {
+  PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, ReferenceLine,
+  AreaChart, Area, CartesianGrid,
+} from 'recharts'
 import { useTransacciones, usePresupuestos, useServicios } from '../hooks/queries'
 import { useCurrency } from '../context/CurrencyContext'
 import { getCategoryMeta } from '../lib/categoryMeta'
@@ -27,8 +31,22 @@ function pctChange(curr, prev) {
   return ((curr - prev) / prev * 100).toFixed(0)
 }
 
+const CHART_TYPES = [
+  { key: 'dona',   label: 'Dona' },
+  { key: 'barras', label: 'Barras' },
+  { key: 'area',   label: 'Área' },
+]
+
 export default function Dashboard() {
   const { format: fmt } = useCurrency()
+  const [chartType, setChartType] = useState(
+    () => localStorage.getItem('dashboard_chart') || 'dona'
+  )
+
+  const handleChartType = (t) => {
+    setChartType(t)
+    localStorage.setItem('dashboard_chart', t)
+  }
 
   const { data: txActual   = [] } = useTransacciones({ from: mesActualFrom, to: mesActualTo })
   const { data: txAnterior = [] } = useTransacciones({ from: mesAntFrom,    to: mesAntTo    })
@@ -51,6 +69,21 @@ export default function Dashboard() {
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 6)
+  }, [txActual])
+
+  const chartDataDiario = useMemo(() => {
+    const byDay = {}
+    txActual.forEach(tx => {
+      if (!byDay[tx.fecha]) byDay[tx.fecha] = {
+        fecha: tx.fecha,
+        label: format(new Date(tx.fecha + 'T00:00:00'), 'd MMM', { locale: es }),
+        gastos: 0,
+      }
+      if (tx.tipo === 'gasto') byDay[tx.fecha].gastos += +tx.monto
+    })
+    return Object.values(byDay)
+      .filter(d => d.gastos > 0)
+      .sort((a, b) => a.fecha.localeCompare(b.fecha))
   }, [txActual])
 
   const serviciosProximos = useMemo(() =>
@@ -118,53 +151,148 @@ export default function Dashboard() {
             />
           </div>
 
-          {/* Gráfico dona */}
-          {donaData.length > 0 && (
+          {/* Gráfico principal */}
+          {(donaData.length > 0 || chartDataDiario.length > 0) && (
             <div className="bg-panel border border-line rounded-xl p-4">
-              <h2 className="text-sm font-semibold text-ink mb-3">Gastos por categoría</h2>
-              <div className="flex flex-col sm:flex-row items-center gap-4">
-                <div className="w-full sm:w-52 h-48 flex-shrink-0">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={donaData}
-                        cx="50%" cy="50%"
-                        innerRadius={55} outerRadius={85}
-                        paddingAngle={3}
-                        dataKey="value"
-                      >
-                        {donaData.map(entry => (
-                          <Cell key={entry.name} fill={getCategoryMeta(entry.name).color} />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        formatter={v => fmt(v)}
-                        contentStyle={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 8 }}
-                        labelStyle={{ color: 'var(--ink)' }}
-                        itemStyle={{ color: 'var(--dim)' }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="flex flex-col gap-2 w-full">
-                  {donaData.map(entry => {
-                    const meta = getCategoryMeta(entry.name)
-                    const pct = gastos > 0 ? (entry.value / gastos * 100).toFixed(0) : 0
-                    return (
-                      <div key={entry.name} className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: meta.color }} />
-                          <span className="text-sm text-ink truncate">{entry.name}</span>
-                        </div>
-                        <div className="flex items-center gap-3 flex-shrink-0">
-                          <span className="text-xs text-dim">{pct}%</span>
-                          <span className="text-sm font-medium text-ink">{fmt(entry.value)}</span>
-                        </div>
-                      </div>
-                    )
-                  })}
+              {/* Toggle tipo de gráfico */}
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-semibold text-ink">
+                  {chartType === 'dona' ? 'Gastos por categoría' : 'Gastos por día'}
+                </h2>
+                <div className="flex gap-1 bg-well rounded-lg p-0.5">
+                  {CHART_TYPES.map(t => (
+                    <button
+                      key={t.key}
+                      onClick={() => handleChartType(t.key)}
+                      className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
+                        chartType === t.key
+                          ? 'bg-brand-500 text-white'
+                          : 'text-dim hover:text-ink'
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
                 </div>
               </div>
+
+              {/* Dona */}
+              {chartType === 'dona' && donaData.length > 0 && (
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  <div className="w-full sm:w-52 h-48 shrink-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={donaData}
+                          cx="50%" cy="50%"
+                          innerRadius={55} outerRadius={85}
+                          paddingAngle={3}
+                          dataKey="value"
+                        >
+                          {donaData.map(entry => (
+                            <Cell key={entry.name} fill={getCategoryMeta(entry.name).color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          formatter={v => fmt(v)}
+                          contentStyle={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 8 }}
+                          labelStyle={{ color: 'var(--ink)' }}
+                          itemStyle={{ color: 'var(--dim)' }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="flex flex-col gap-2 w-full">
+                    {donaData.map(entry => {
+                      const meta = getCategoryMeta(entry.name)
+                      const pct = gastos > 0 ? (entry.value / gastos * 100).toFixed(0) : 0
+                      return (
+                        <div key={entry.name} className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: meta.color }} />
+                            <span className="text-sm text-ink truncate">{entry.name}</span>
+                          </div>
+                          <div className="flex items-center gap-3 shrink-0">
+                            <span className="text-xs text-dim">{pct}%</span>
+                            <span className="text-sm font-medium text-ink">{fmt(entry.value)}</span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Barras por día */}
+              {chartType === 'barras' && (
+                <>
+                  {ingresos > 0 && (
+                    <div className="flex justify-end mb-2">
+                      <span className="text-xs text-income flex items-center gap-1">
+                        <span className="inline-block w-5 h-px border-t-2 border-dashed border-income" />
+                        Ingresos {fmt(ingresos)}
+                      </span>
+                    </div>
+                  )}
+                  <ResponsiveContainer width="100%" height={160}>
+                    <BarChart data={chartDataDiario} margin={{ top: 8, right: 0, left: 0, bottom: 0 }} barCategoryGap="30%">
+                      <XAxis dataKey="label" tick={{ fill: '#5a5a7a', fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                      <YAxis hide domain={[0, Math.max(ingresos * 1.1, gastos * 1.1, 1)]} />
+                      <Tooltip
+                        contentStyle={{ background: '#111118', border: '1px solid #1c1c2e', borderRadius: 8, fontSize: 12 }}
+                        labelStyle={{ color: '#eaeaf0', marginBottom: 2 }}
+                        itemStyle={{ color: '#ff4d6d' }}
+                        formatter={v => [fmt(v), 'Gastos']}
+                        cursor={{ fill: '#ffffff08' }}
+                      />
+                      {ingresos > 0 && <ReferenceLine y={ingresos} stroke="#00e676" strokeDasharray="5 3" strokeWidth={1.5} />}
+                      <Bar dataKey="gastos" fill="#ff4d6d" radius={[3, 3, 0, 0]} maxBarSize={36} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                  {chartDataDiario.length === 0 && (
+                    <p className="text-dim text-sm text-center py-8">Sin gastos este mes</p>
+                  )}
+                </>
+              )}
+
+              {/* Área */}
+              {chartType === 'area' && (
+                <>
+                  {ingresos > 0 && (
+                    <div className="flex justify-end mb-2">
+                      <span className="text-xs text-income flex items-center gap-1">
+                        <span className="inline-block w-5 h-px border-t-2 border-dashed border-income" />
+                        Ingresos {fmt(ingresos)}
+                      </span>
+                    </div>
+                  )}
+                  <ResponsiveContainer width="100%" height={160}>
+                    <AreaChart data={chartDataDiario} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="gradGastos" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%"  stopColor="#ff4d6d" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#ff4d6d" stopOpacity={0.02} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1c1c2e" vertical={false} />
+                      <XAxis dataKey="label" tick={{ fill: '#5a5a7a', fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                      <YAxis hide domain={[0, Math.max(ingresos * 1.1, gastos * 1.1, 1)]} />
+                      <Tooltip
+                        contentStyle={{ background: '#111118', border: '1px solid #1c1c2e', borderRadius: 8, fontSize: 12 }}
+                        labelStyle={{ color: '#eaeaf0', marginBottom: 2 }}
+                        itemStyle={{ color: '#ff4d6d' }}
+                        formatter={v => [fmt(v), 'Gastos']}
+                        cursor={{ stroke: '#ffffff20' }}
+                      />
+                      {ingresos > 0 && <ReferenceLine y={ingresos} stroke="#00e676" strokeDasharray="5 3" strokeWidth={1.5} />}
+                      <Area type="monotone" dataKey="gastos" stroke="#ff4d6d" strokeWidth={2} fill="url(#gradGastos)" dot={false} activeDot={{ r: 4, fill: '#ff4d6d' }} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                  {chartDataDiario.length === 0 && (
+                    <p className="text-dim text-sm text-center py-8">Sin gastos este mes</p>
+                  )}
+                </>
+              )}
             </div>
           )}
 

@@ -3,9 +3,6 @@ import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns
 import { es } from 'date-fns/locale'
 import { Plus, Trash2, ChevronLeft, ChevronRight, X, CheckSquare, Check } from 'lucide-react'
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ReferenceLine, ResponsiveContainer,
-} from 'recharts'
-import {
   useTransacciones, useAddTransaccion, useUpdateTransaccion, useDeleteTransaccion,
 } from '../hooks/queries'
 import { useCurrency } from '../context/CurrencyContext'
@@ -52,21 +49,6 @@ export default function Transacciones() {
   const gastos   = useMemo(() => allTxs.filter(t => t.tipo === 'gasto' ).reduce((s, t) => s + +t.monto, 0), [allTxs])
   const balance  = ingresos - gastos
 
-  // Datos del gráfico: gastos agrupados por día
-  const chartData = useMemo(() => {
-    const byDay = {}
-    allTxs.forEach(tx => {
-      if (!byDay[tx.fecha]) byDay[tx.fecha] = {
-        fecha: tx.fecha,
-        label: format(new Date(tx.fecha + 'T00:00:00'), 'd MMM', { locale: es }),
-        gastos: 0,
-      }
-      if (tx.tipo === 'gasto') byDay[tx.fecha].gastos += +tx.monto
-    })
-    return Object.values(byDay)
-      .filter(d => d.gastos > 0)
-      .sort((a, b) => a.fecha.localeCompare(b.fecha))
-  }, [allTxs])
 
   const mesLabel   = format(mes, "MMMM yyyy", { locale: es }).replace(/^\w/, c => c.toUpperCase())
   const esMesActual = format(mes, 'yyyy-MM') >= format(new Date(), 'yyyy-MM')
@@ -200,7 +182,7 @@ export default function Transacciones() {
       </div>
 
       {/* Resumen */}
-      <div className="grid grid-cols-3 gap-3 mb-4">
+      <div className="grid grid-cols-3 gap-3 mb-5">
         {[
           { l: 'Ingresos', v: ingresos, c: 'text-income' },
           { l: 'Gastos',   v: gastos,   c: 'text-expense' },
@@ -212,44 +194,6 @@ export default function Transacciones() {
           </div>
         ))}
       </div>
-
-      {/* Gráfico de gastos diarios */}
-      {chartData.length > 0 && (
-        <div className="bg-panel border border-line rounded-xl px-4 pt-3 pb-1 mb-5">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs text-dim">Gastos por día</p>
-            {ingresos > 0 && (
-              <span className="text-xs text-income flex items-center gap-1">
-                <span className="inline-block w-5 h-px border-t-2 border-dashed border-income" />
-                Ingresos {fmt(ingresos)}
-              </span>
-            )}
-          </div>
-          <ResponsiveContainer width="100%" height={110}>
-            <BarChart data={chartData} margin={{ top: 8, right: 0, left: 0, bottom: 0 }} barCategoryGap="30%">
-              <XAxis
-                dataKey="label"
-                tick={{ fill: '#5a5a7a', fontSize: 10 }}
-                axisLine={false}
-                tickLine={false}
-                interval="preserveStartEnd"
-              />
-              <YAxis hide domain={[0, Math.max(ingresos * 1.1, gastos * 1.1, 1)]} />
-              <Tooltip
-                contentStyle={{ background: '#111118', border: '1px solid #1c1c2e', borderRadius: 8, fontSize: 12 }}
-                labelStyle={{ color: '#eaeaf0', marginBottom: 2 }}
-                itemStyle={{ color: '#ff4d6d' }}
-                formatter={(v) => [fmt(v), 'Gastos']}
-                cursor={{ fill: '#ffffff08' }}
-              />
-              {ingresos > 0 && (
-                <ReferenceLine y={ingresos} stroke="#00e676" strokeDasharray="5 3" strokeWidth={1.5} />
-              )}
-              <Bar dataKey="gastos" fill="#ff4d6d" radius={[3, 3, 0, 0]} maxBarSize={36} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
 
       {/* Lista */}
       {isLoading ? (

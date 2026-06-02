@@ -98,54 +98,6 @@ function DaysBadge({ dias, pagado }) {
   )
 }
 
-// ── Picker de ícono ───────────────────────────────────────────────────────────
-function IconPicker({ value, color, onChange }) {
-  const [open, setOpen] = useState(false)
-  const Icon = getServiceIcon(value)
-
-  return (
-    <div className="flex flex-col items-center relative">
-      <button
-        type="button"
-        onClick={() => setOpen(v => !v)}
-        title="Cambiar ícono"
-        className="w-20 h-20 rounded-2xl flex items-center justify-center transition-all hover:scale-105 active:scale-95"
-        style={{ background: color + '22', color }}
-      >
-        <Icon size={38} />
-      </button>
-
-      {open && (
-        <>
-          {/* Capa para cerrar al tocar fuera */}
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-
-          {/* Dropdown flotante */}
-          <div className="absolute top-full mt-2 z-20 bg-panel border border-line rounded-2xl p-3 shadow-xl w-64">
-            <p className="text-[10px] text-dim mb-2 text-center">Seleccioná un ícono</p>
-            <div className="grid grid-cols-6 gap-1.5">
-              {SERVICE_ICONS.map(({ key, Icon: I }) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => { onChange(key); setOpen(false) }}
-                  className={`h-10 rounded-xl flex items-center justify-center transition-colors ${
-                    value === key
-                      ? 'ring-2 ring-offset-1 ring-offset-panel'
-                      : 'hover:bg-brand-500/10 text-dim hover:text-ink'
-                  }`}
-                  style={value === key ? { color } : {}}
-                >
-                  <I size={18} />
-                </button>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
-    </div>
-  )
-}
 
 // ── Página principal ──────────────────────────────────────────────────────────
 export default function Servicios() {
@@ -453,10 +405,7 @@ function ServicioModal({ servicio, onSave, onDelete, onClose, saving, deleting }
           <button onClick={onClose} className="text-dim hover:text-ink transition-colors"><X size={20} /></button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-
-          {/* Ícono grande centrado */}
-          <IconPicker value={icono} color={catActual.color} onChange={setIcono} />
+        <form onSubmit={handleSubmit} className="space-y-4">
 
           {/* Nombre */}
           <div>
@@ -481,7 +430,7 @@ function ServicioModal({ servicio, onSave, onDelete, onClose, saving, deleting }
           {/* Categoría */}
           <div>
             <label className="text-xs text-dim mb-2 block">Categoría</label>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 items-center">
               {allCats.map(cat => {
                 const CatIcon = getServiceIcon(cat.icon)
                 const sel = categoria === cat.name
@@ -500,69 +449,73 @@ function ServicioModal({ servicio, onSave, onDelete, onClose, saving, deleting }
                   </button>
                 )
               })}
-              {/* Botón nueva categoría */}
-              <button
-                type="button" onClick={() => setShowNewCat(v => !v)}
-                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs border transition-colors ${
-                  showNewCat
-                    ? 'border-brand-500 bg-brand-500/10 text-brand-500'
-                    : 'border-dashed border-line text-dim hover:border-brand-500/40 hover:text-ink'
-                }`}
-              >
-                <Plus size={11} /> Nueva
-              </button>
-            </div>
 
-            {/* Form nueva categoría */}
-            {showNewCat && (
-              <div className="mt-3 p-3 bg-well border border-line rounded-xl space-y-3">
-                <input
-                  type="text" placeholder="Nombre de la categoría"
-                  value={newCatName} onChange={e => setNewCatName(e.target.value)}
-                  autoFocus
-                  className="w-full bg-panel border border-line rounded-lg px-3 py-2 text-sm text-ink placeholder-dim focus:outline-none focus:border-brand-500"
-                />
-                {/* Selector de ícono mini */}
-                <div>
-                  <p className="text-xs text-dim mb-1.5">Ícono</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {SERVICE_ICONS.map(({ key, Icon: I }) => (
-                      <button key={key} type="button" onClick={() => setNewCatIcon(key)}
-                        className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
-                          newCatIcon === key
-                            ? 'bg-brand-500/20 text-brand-500 border border-brand-500/50'
-                            : 'bg-panel border border-line text-dim hover:text-ink'
-                        }`}
-                      >
-                        <I size={14} />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                {/* Color */}
-                <div>
-                  <p className="text-xs text-dim mb-1.5">Color</p>
-                  <div className="flex flex-wrap gap-2">
-                    {COLOR_OPTIONS.map(c => (
-                      <button key={c} type="button" onClick={() => setNewCatColor(c)}
-                        className={`w-6 h-6 rounded-full transition-transform ${newCatColor === c ? 'scale-125 ring-2 ring-offset-1 ring-offset-well' : 'hover:scale-110'}`}
-                        style={{ background: c, '--tw-ring-color': c }}
+              {/* Botón Nueva + dropdown flotante */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowNewCat(v => !v)}
+                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs border transition-colors ${
+                    showNewCat
+                      ? 'border-brand-500 bg-brand-500/10 text-brand-500'
+                      : 'border-dashed border-line text-dim hover:border-brand-500/40 hover:text-ink'
+                  }`}
+                >
+                  <Plus size={11} /> Nueva
+                </button>
+
+                {showNewCat && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowNewCat(false)} />
+                    <div className="dropdown-bouncy absolute left-0 top-full mt-1 z-20 bg-panel border border-line rounded-xl shadow-xl p-3 w-72 space-y-3">
+                      <input
+                        type="text" placeholder="Nombre de la categoría"
+                        value={newCatName} onChange={e => setNewCatName(e.target.value)}
+                        autoFocus
+                        className="w-full bg-well border border-line rounded-lg px-3 py-2 text-sm text-ink placeholder-dim focus:outline-none focus:border-brand-500"
                       />
-                    ))}
-                  </div>
-                </div>
-                <div className="flex gap-2 justify-end">
-                  <button type="button" onClick={() => setShowNewCat(false)}
-                    className="px-3 py-1.5 text-xs text-dim bg-panel border border-line rounded-lg hover:text-ink">
-                    Cancelar
-                  </button>
-                  <button type="button" onClick={handleCreateCat} disabled={!newCatName.trim()}
-                    className="px-3 py-1.5 text-xs text-white bg-brand-500 rounded-lg hover:bg-brand-600 disabled:opacity-50">
-                    Crear
-                  </button>
-                </div>
+                      <div>
+                        <p className="text-xs text-dim mb-1.5">Ícono</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {SERVICE_ICONS.map(({ key, Icon: I }) => (
+                            <button key={key} type="button" onClick={() => setNewCatIcon(key)}
+                              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                                newCatIcon === key
+                                  ? 'bg-brand-500/20 text-brand-500 border border-brand-500/50'
+                                  : 'bg-well border border-line text-dim hover:text-ink'
+                              }`}
+                            >
+                              <I size={14} />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-xs text-dim mb-1.5">Color</p>
+                        <div className="flex flex-wrap gap-2">
+                          {COLOR_OPTIONS.map(c => (
+                            <button key={c} type="button" onClick={() => setNewCatColor(c)}
+                              className={`w-6 h-6 rounded-full transition-transform ${newCatColor === c ? 'scale-125 ring-2 ring-offset-1 ring-offset-panel' : 'hover:scale-110'}`}
+                              style={{ background: c }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex gap-2 justify-end pt-1">
+                        <button type="button" onClick={() => setShowNewCat(false)}
+                          className="px-3 py-1.5 text-xs text-dim bg-well border border-line rounded-lg hover:text-ink">
+                          Cancelar
+                        </button>
+                        <button type="button" onClick={handleCreateCat} disabled={!newCatName.trim()}
+                          className="px-3 py-1.5 text-xs text-white bg-brand-500 rounded-lg hover:bg-brand-600 disabled:opacity-50">
+                          Crear
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
-            )}
+            </div>
           </div>
 
           {/* Día vencimiento */}

@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect } from 'react'
-import { User, Camera, Save, RefreshCw, LogOut, AlertTriangle, X } from 'lucide-react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import Cropper from 'react-easy-crop'
+import { User, Camera, Save, RefreshCw, LogOut, AlertTriangle, X, ZoomIn, ZoomOut } from 'lucide-react'
 import { useProfile, useUpdateProfile } from '../hooks/queries'
 import { useAuth } from '../context/AuthContext'
 import { useCurrency, CURRENCIES } from '../context/CurrencyContext'
@@ -15,10 +16,15 @@ export default function Perfil() {
 
   const [nombre, setNombre] = useState('')
   const [apodo,  setApodo]  = useState('')
-  const [avatarUrl, setAvatarUrl] = useState(null)
-  const [uploading, setUploading] = useState(false)
+  const [avatarUrl,       setAvatarUrl]       = useState(null)
+  const [uploading,       setUploading]       = useState(false)
   const [pendingCurrency, setPendingCurrency] = useState(null)
   const [savingCurrency,  setSavingCurrency]  = useState(false)
+  // Crop state
+  const [cropSrc,     setCropSrc]     = useState(null)  // URL del archivo seleccionado
+  const [crop,        setCrop]        = useState({ x: 0, y: 0 })
+  const [zoom,        setZoom]        = useState(1)
+  const [croppedArea, setCroppedArea] = useState(null)
   const fileRef = useRef(null)
 
   useEffect(() => {
@@ -29,42 +35,52 @@ export default function Perfil() {
     }
   }, [profile?.id])
 
-  const handleAvatarChange = async (e) => {
+  // Al seleccionar archivo → abrir modal de crop
+  const handleAvatarChange = (e) => {
     const file = e.target.files?.[0]
-    if (!file || !user) return
-
-    if (file.size > 2 * 1024 * 1024) {
-      toast('La imagen no puede superar 2 MB', 'error')
+    if (!file) return
+    if (file.size > 10 * 1024 * 1024) {
+      toast('La imagen no puede superar 10 MB', 'error')
       if (fileRef.current) fileRef.current.value = ''
       return
     }
+    const url = URL.createObjectURL(file)
+    setCropSrc(url)
+    setCrop({ x: 0, y: 0 })
+    setZoom(1)
+    if (fileRef.current) fileRef.current.value = ''
+  }
 
+  const onCropComplete = useCallback((_, areaPixels) => {
+    setCroppedArea(areaPixels)
+  }, [])
+
+  // Al confirmar el crop → generar canvas → subir blob
+  const handleUploadCropped = async () => {
+    if (!croppedArea || !cropSrc || !user) return
     setUploading(true)
     try {
-      const ext = file.name.split('.').pop().toLowerCase() || 'jpg'
-      // Nombre único por upload para evitar problemas de caché del CDN
-      const path = `${user.id}/${Date.now()}.${ext}`
+      const blob = await getCroppedBlob(cropSrc, croppedArea)
+      const path = `${user.id}/${Date.now()}.jpg`
 
       const { data: uploadData, error: upErr } = await supabase.storage
         .from('avatars')
-        .upload(path, file, { contentType: file.type })
-
+        .upload(path, blob, { contentType: 'image/jpeg' })
       if (upErr) throw upErr
 
-      // Usar la ruta exacta que devuelve el upload, no la que armamos
       const { data: { publicUrl } } = supabase.storage
         .from('avatars')
         .getPublicUrl(uploadData.path)
 
       await updateMut.mutateAsync({ avatar_url: publicUrl })
       setAvatarUrl(publicUrl)
+      setCropSrc(null)
       toast('Foto actualizada', 'success')
     } catch (err) {
       console.error('Avatar upload error:', err)
       toast(err?.message ?? 'Error al subir la imagen', 'error')
     } finally {
       setUploading(false)
-      if (fileRef.current) fileRef.current.value = ''
     }
   }
 
@@ -192,6 +208,61 @@ export default function Perfil() {
         </div>
       </div>
 
+      {/* Modal de recorte de avatar */}
+      {cropSrc && (
+        <div className="fixed inset-0 bg-black/80 flex flex-col z-50">
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-4 shrink-0">
+            <button
+              onClick={() => setCropSrc(null)}
+              className="text-white/60 hover:text-white transition-colors"
+            >
+              <X size={22} />
+            </button>
+            <span className="text-white text-sm font-medium">Ajustar foto</span>
+            <button
+              onClick={handleUploadCropped}
+              disabled={uploading}
+              className="px-4 py-1.5 bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
+            >
+              {uploading ? <RefreshCw size={14} className="animate-spin" /> : 'Guardar'}
+            </button>
+          </div>
+
+          {/* Área de recorte */}
+          <div className="relative flex-1">
+            <Cropper
+              image={cropSrc}
+              crop={crop}
+              zoom={zoom}
+              aspect={1}
+              cropShape="round"
+              showGrid={false}
+              onCropChange={setCrop}
+              onZoomChange={setZoom}
+              onCropComplete={onCropComplete}
+              style={{
+                containerStyle: { background: '#000' },
+                cropAreaStyle:  { border: '2px solid #7c6af7', boxShadow: '0 0 0 9999px rgba(0,0,0,0.6)' },
+              }}
+            />
+          </div>
+
+          {/* Slider de zoom */}
+          <div className="flex items-center gap-3 px-6 py-5 shrink-0">
+            <ZoomOut size={18} className="text-white/50 shrink-0" />
+            <input
+              type="range"
+              min={1} max={3} step={0.01}
+              value={zoom}
+              onChange={e => setZoom(+e.target.value)}
+              className="flex-1 accent-brand-500"
+            />
+            <ZoomIn size={18} className="text-white/50 shrink-0" />
+          </div>
+        </div>
+      )}
+
       {/* Modal confirmación cambio de moneda */}
       {pendingCurrency && (() => {
         const cur = CURRENCIES.find(c => c.code === pendingCurrency)
@@ -244,4 +315,31 @@ export default function Perfil() {
       </div>
     </div>
   )
+}
+
+// ── Genera un Blob JPEG a partir de la imagen y el área recortada ─────────────
+async function getCroppedBlob(imageSrc, pixelCrop) {
+  const image = await new Promise((resolve, reject) => {
+    const img = new Image()
+    img.addEventListener('load', () => resolve(img))
+    img.addEventListener('error', reject)
+    img.src = imageSrc
+  })
+
+  const canvas = document.createElement('canvas')
+  const size = Math.min(pixelCrop.width, pixelCrop.height, 512)
+  canvas.width  = size
+  canvas.height = size
+
+  const ctx = canvas.getContext('2d')
+  ctx.drawImage(
+    image,
+    pixelCrop.x, pixelCrop.y,
+    pixelCrop.width, pixelCrop.height,
+    0, 0, size, size,
+  )
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Canvas vacío')), 'image/jpeg', 0.9)
+  })
 }

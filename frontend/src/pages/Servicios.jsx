@@ -351,10 +351,25 @@ function NewCatDropdown({ anchorRef, open, onClose, onCrear }) {
   const COLOR_OPTIONS = ['#e11d48','#f97316','#f59e0b','#84cc16','#10b981','#06b6d4','#3b82f6','#8b5cf6','#ec4899','#7c6af7','#64748b','#94a3b8']
 
   useEffect(() => {
-    if (open && anchorRef.current) {
-      const r = anchorRef.current.getBoundingClientRect()
-      setPos({ top: r.bottom + 6, left: r.left })
-    }
+    if (!open || !anchorRef.current) return
+    const r   = anchorRef.current.getBoundingClientRect()
+    const vw  = window.innerWidth
+    const vh  = window.innerHeight
+    const pad = 8
+    const w   = Math.min(288, vw - pad * 2)
+    const estimatedH = 360
+
+    let left = r.left
+    let top  = r.bottom + 6
+
+    // No salir por la derecha
+    if (left + w > vw - pad) left = vw - w - pad
+    // No salir por la izquierda
+    if (left < pad) left = pad
+    // Si no entra abajo, abrir hacia arriba
+    if (top + estimatedH > vh - pad) top = Math.max(pad, r.top - estimatedH - 6)
+
+    setPos({ top, left, w })
   }, [open])
 
   const handleCrear = () => {
@@ -370,8 +385,8 @@ function NewCatDropdown({ anchorRef, open, onClose, onCrear }) {
     <>
       <div className="fixed inset-0 z-[998]" onClick={onClose} />
       <div
-        className="dropdown-bouncy fixed z-[999] bg-panel border border-line rounded-xl shadow-2xl p-3 w-72 space-y-3"
-        style={{ top: pos.top, left: pos.left }}
+        className="dropdown-bouncy fixed z-[999] bg-panel border border-line rounded-xl shadow-2xl p-3 space-y-3 overflow-y-auto"
+        style={{ top: pos.top, left: pos.left, width: pos.w ?? 288, maxHeight: '80vh' }}
       >
         <input
           type="text" placeholder="Nombre de la categoría"

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { User, Camera, Save, RefreshCw, LogOut } from 'lucide-react'
+import { User, Camera, Save, RefreshCw, LogOut, AlertTriangle, X } from 'lucide-react'
 import { useProfile, useUpdateProfile } from '../hooks/queries'
 import { useAuth } from '../context/AuthContext'
 import { useCurrency, CURRENCIES } from '../context/CurrencyContext'
@@ -17,6 +17,8 @@ export default function Perfil() {
   const [apodo,  setApodo]  = useState('')
   const [avatarUrl, setAvatarUrl] = useState(null)
   const [uploading, setUploading] = useState(false)
+  const [pendingCurrency, setPendingCurrency] = useState(null)
+  const [savingCurrency,  setSavingCurrency]  = useState(false)
   const fileRef = useRef(null)
 
   useEffect(() => {
@@ -48,6 +50,20 @@ export default function Perfil() {
       toast('Error al subir la imagen', 'error')
     } finally {
       setUploading(false)
+    }
+  }
+
+  const handleConfirmCurrency = async () => {
+    if (!pendingCurrency) return
+    setSavingCurrency(true)
+    try {
+      await setCurrency(pendingCurrency)
+      toast(`Moneda cambiada a ${pendingCurrency}`, 'success')
+    } catch {
+      toast('Error al cambiar la moneda', 'error')
+    } finally {
+      setSavingCurrency(false)
+      setPendingCurrency(null)
     }
   }
 
@@ -145,11 +161,11 @@ export default function Perfil() {
             {CURRENCIES.map(c => (
               <button
                 key={c.code}
-                onClick={() => setCurrency(c.code)}
+                onClick={() => c.code !== currency && setPendingCurrency(c.code)}
                 className={`flex flex-col items-center gap-1 px-3 py-3 rounded-xl border transition-colors ${
                   currency === c.code
                     ? 'border-brand-500 bg-brand-500/10 text-ink font-semibold'
-                    : 'border-line bg-well text-dim hover:text-ink'
+                    : 'border-line bg-well text-dim hover:text-ink hover:border-brand-500/30'
                 }`}
               >
                 <span className="text-xl">{c.flag}</span>
@@ -160,6 +176,46 @@ export default function Perfil() {
           </div>
         </div>
       </div>
+
+      {/* Modal confirmación cambio de moneda */}
+      {pendingCurrency && (() => {
+        const cur = CURRENCIES.find(c => c.code === pendingCurrency)
+        return (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+            <div className="bg-panel border border-line rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="w-9 h-9 rounded-xl bg-yellow-500/15 flex items-center justify-center shrink-0">
+                  <AlertTriangle size={18} className="text-yellow-400" />
+                </div>
+                <div>
+                  <h3 className="text-ink font-semibold">Cambiar a {cur?.name}</h3>
+                  <p className="text-dim text-sm mt-1">
+                    Los montos se mostrarán en <span className="text-ink font-medium">{cur?.flag} {cur?.code} ({cur?.symbol})</span>. Los números no se convierten — solo cambia el formato de visualización.
+                  </p>
+                </div>
+                <button onClick={() => setPendingCurrency(null)} className="text-dim hover:text-ink shrink-0">
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setPendingCurrency(null)}
+                  className="flex-1 py-2.5 rounded-xl bg-well text-dim text-sm font-medium hover:text-ink transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleConfirmCurrency}
+                  disabled={savingCurrency}
+                  className="flex-1 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+                >
+                  {savingCurrency ? 'Guardando...' : `Confirmar`}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Logout */}
       <div className="bg-panel border border-line rounded-2xl p-5">

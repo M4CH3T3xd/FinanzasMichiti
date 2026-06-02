@@ -16,6 +16,8 @@ const Deudas        = lazy(() => import('./pages/Deudas'))
 const Servicios     = lazy(() => import('./pages/Servicios'))
 const Metas         = lazy(() => import('./pages/Metas'))
 const Perfil        = lazy(() => import('./pages/Perfil'))
+const Conversor     = lazy(() => import('./pages/Conversor'))
+const Exportar      = lazy(() => import('./pages/Exportar'))
 const Admin         = lazy(() => import('./pages/Admin'))
 
 function PageLoader() {
@@ -66,6 +68,8 @@ export default function App() {
                       <Route path="metas"         element={<Metas />} />
                       <Route path="deudas"        element={<Deudas />} />
                       <Route path="perfil"        element={<Perfil />} />
+                      <Route path="conversor"     element={<Conversor />} />
+                      <Route path="exportar"      element={<Exportar />} />
                       <Route
                         path="admin"
                         element={

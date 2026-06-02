@@ -3,6 +3,9 @@ import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns
 import { es } from 'date-fns/locale'
 import { Plus, Trash2, ChevronLeft, ChevronRight, X, CheckSquare, Check } from 'lucide-react'
 import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ReferenceLine, ResponsiveContainer,
+} from 'recharts'
+import {
   useTransacciones, useAddTransaccion, useUpdateTransaccion, useDeleteTransaccion,
 } from '../hooks/queries'
 import { useCurrency } from '../context/CurrencyContext'
@@ -37,14 +40,33 @@ export default function Transacciones() {
     ...(catFiltro  ? { categoria: catFiltro } : {}),
   }
 
+  // Sin filtro de tipo/categoría — para resumen y gráfico
+  const { data: allTxs = [] } = useTransacciones({ from, to })
   const { data: txs = [], isLoading } = useTransacciones(filters)
   const addMut    = useAddTransaccion()
   const updateMut = useUpdateTransaccion()
   const deleteMut = useDeleteTransaccion()
 
-  const ingresos = useMemo(() => txs.filter(t => t.tipo === 'ingreso').reduce((s, t) => s + +t.monto, 0), [txs])
-  const gastos   = useMemo(() => txs.filter(t => t.tipo === 'gasto' ).reduce((s, t) => s + +t.monto, 0), [txs])
+  // Resumen siempre del mes completo, independiente del filtro activo
+  const ingresos = useMemo(() => allTxs.filter(t => t.tipo === 'ingreso').reduce((s, t) => s + +t.monto, 0), [allTxs])
+  const gastos   = useMemo(() => allTxs.filter(t => t.tipo === 'gasto' ).reduce((s, t) => s + +t.monto, 0), [allTxs])
   const balance  = ingresos - gastos
+
+  // Datos del gráfico: gastos agrupados por día
+  const chartData = useMemo(() => {
+    const byDay = {}
+    allTxs.forEach(tx => {
+      if (!byDay[tx.fecha]) byDay[tx.fecha] = {
+        fecha: tx.fecha,
+        label: format(new Date(tx.fecha + 'T00:00:00'), 'd MMM', { locale: es }),
+        gastos: 0,
+      }
+      if (tx.tipo === 'gasto') byDay[tx.fecha].gastos += +tx.monto
+    })
+    return Object.values(byDay)
+      .filter(d => d.gastos > 0)
+      .sort((a, b) => a.fecha.localeCompare(b.fecha))
+  }, [allTxs])
 
   const mesLabel   = format(mes, "MMMM yyyy", { locale: es }).replace(/^\w/, c => c.toUpperCase())
   const esMesActual = format(mes, 'yyyy-MM') >= format(new Date(), 'yyyy-MM')
@@ -178,7 +200,7 @@ export default function Transacciones() {
       </div>
 
       {/* Resumen */}
-      <div className="grid grid-cols-3 gap-3 mb-5">
+      <div className="grid grid-cols-3 gap-3 mb-4">
         {[
           { l: 'Ingresos', v: ingresos, c: 'text-income' },
           { l: 'Gastos',   v: gastos,   c: 'text-expense' },
@@ -190,6 +212,44 @@ export default function Transacciones() {
           </div>
         ))}
       </div>
+
+      {/* Gráfico de gastos diarios */}
+      {chartData.length > 0 && (
+        <div className="bg-panel border border-line rounded-xl px-4 pt-3 pb-1 mb-5">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs text-dim">Gastos por día</p>
+            {ingresos > 0 && (
+              <span className="text-xs text-income flex items-center gap-1">
+                <span className="inline-block w-5 h-px border-t-2 border-dashed border-income" />
+                Ingresos {fmt(ingresos)}
+              </span>
+            )}
+          </div>
+          <ResponsiveContainer width="100%" height={110}>
+            <BarChart data={chartData} margin={{ top: 8, right: 0, left: 0, bottom: 0 }} barCategoryGap="30%">
+              <XAxis
+                dataKey="label"
+                tick={{ fill: '#5a5a7a', fontSize: 10 }}
+                axisLine={false}
+                tickLine={false}
+                interval="preserveStartEnd"
+              />
+              <YAxis hide domain={[0, Math.max(ingresos * 1.1, gastos * 1.1, 1)]} />
+              <Tooltip
+                contentStyle={{ background: '#111118', border: '1px solid #1c1c2e', borderRadius: 8, fontSize: 12 }}
+                labelStyle={{ color: '#eaeaf0', marginBottom: 2 }}
+                itemStyle={{ color: '#ff4d6d' }}
+                formatter={(v) => [fmt(v), 'Gastos']}
+                cursor={{ fill: '#ffffff08' }}
+              />
+              {ingresos > 0 && (
+                <ReferenceLine y={ingresos} stroke="#00e676" strokeDasharray="5 3" strokeWidth={1.5} />
+              )}
+              <Bar dataKey="gastos" fill="#ff4d6d" radius={[3, 3, 0, 0]} maxBarSize={36} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       {/* Lista */}
       {isLoading ? (
@@ -216,14 +276,14 @@ export default function Transacciones() {
                 }`}
               >
                 {selMode && (
-                  <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                  <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
                     isSel ? 'bg-brand-500 border-brand-500' : 'border-dim'
                   }`}>
                     {isSel && <Check size={11} className="text-white" />}
                   </span>
                 )}
                 <span
-                  className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+                  className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
                   style={{ background: meta.color + '22', color: meta.color }}
                 >
                   <Icon size={16} />
@@ -237,7 +297,7 @@ export default function Transacciones() {
                     {tx.categoria}
                   </button>
                 </div>
-                <div className="text-right flex-shrink-0">
+                <div className="text-right shrink-0">
                   <p className={`text-sm font-semibold ${tx.tipo === 'ingreso' ? 'text-income' : 'text-expense'}`}>
                     {tx.tipo === 'ingreso' ? '+' : '-'}{fmt(tx.monto)}
                   </p>

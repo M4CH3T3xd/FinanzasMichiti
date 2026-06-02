@@ -2,12 +2,14 @@ import { useState, useRef, useEffect } from 'react'
 import { User, Camera, Save, RefreshCw, LogOut } from 'lucide-react'
 import { useProfile, useUpdateProfile } from '../hooks/queries'
 import { useAuth } from '../context/AuthContext'
+import { useCurrency, CURRENCIES } from '../context/CurrencyContext'
 import { useToast } from '../context/ToastContext'
 import { supabase } from '../lib/supabase'
 
 export default function Perfil() {
   const { user, logout } = useAuth()
   const { toast } = useToast()
+  const { currency, setCurrency } = useCurrency()
   const { data: profile } = useProfile()
   const updateMut = useUpdateProfile()
 
@@ -129,6 +131,33 @@ export default function Perfil() {
             <Save size={14} />
             {updateMut.isPending ? 'Guardando...' : 'Guardar cambios'}
           </button>
+        </div>
+      </div>
+
+      {/* Moneda */}
+      <div className="bg-panel border border-line rounded-2xl overflow-hidden">
+        <div className="px-5 py-4 border-b border-line">
+          <h2 className="text-sm font-semibold text-ink">Moneda principal</h2>
+          <p className="text-xs text-dim mt-0.5">Todos los montos de la app se mostrarán en esta moneda.</p>
+        </div>
+        <div className="p-5">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {CURRENCIES.map(c => (
+              <button
+                key={c.code}
+                onClick={() => setCurrency(c.code)}
+                className={`flex flex-col items-center gap-1 px-3 py-3 rounded-xl border transition-colors ${
+                  currency === c.code
+                    ? 'border-brand-500 bg-brand-500/10 text-ink font-semibold'
+                    : 'border-line bg-well text-dim hover:text-ink'
+                }`}
+              >
+                <span className="text-xl">{c.flag}</span>
+                <span className="text-sm">{c.code}</span>
+                <span className="text-xs text-dim">{c.symbol}</span>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

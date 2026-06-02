@@ -73,6 +73,9 @@ function saveCustomServiceCat(cat) {
     localStorage.setItem(SC_KEY, JSON.stringify([...prev, cat]))
   }
 }
+function deleteCustomServiceCat(name) {
+  localStorage.setItem(SC_KEY, JSON.stringify(getCustomServiceCats().filter(c => c.name !== name)))
+}
 
 function getServiceCatMeta(name) {
   const def = DEFAULT_SERVICE_CATS.find(c => c.name === name)
@@ -454,7 +457,14 @@ function ServicioModal({ servicio, onSave, onDelete, onClose, saving, deleting }
   // Categorías custom del usuario
   const [customCats,  setCustomCats]  = useState(() => getCustomServiceCats())
   const [showNewCat,  setShowNewCat]  = useState(false)
-  const nuevaBtnRef = useRef(null)
+  const nuevaBtnRef  = useRef(null)
+
+  const handleDeleteCat = (name) => {
+    deleteCustomServiceCat(name)
+    const updated = getCustomServiceCats()
+    setCustomCats(updated)
+    if (categoria === name) handleSelectCat(DEFAULT_SERVICE_CATS[0])
+  }
 
   const allCats = [...DEFAULT_SERVICE_CATS, ...customCats.filter(c => !DEFAULT_SERVICE_CATS.find(d => d.name === c.name))]
   const catActual = allCats.find(c => c.name === categoria) ?? allCats[0]
@@ -522,8 +532,9 @@ function ServicioModal({ servicio, onSave, onDelete, onClose, saving, deleting }
             <label className="text-xs text-dim mb-2 block">Categoría</label>
             <div className="flex flex-wrap gap-2 items-center">
               {allCats.map(cat => {
-                const CatIcon = getServiceIcon(cat.icon)
-                const sel = categoria === cat.name
+                const CatIcon  = getServiceIcon(cat.icon)
+                const sel      = categoria === cat.name
+                const isCustom = !DEFAULT_SERVICE_CATS.find(d => d.name === cat.name)
                 return (
                   <button
                     key={cat.name} type="button"
@@ -536,6 +547,14 @@ function ServicioModal({ servicio, onSave, onDelete, onClose, saving, deleting }
                   >
                     <CatIcon size={12} style={{ color: cat.color }} />
                     {cat.name}
+                    {isCustom && (
+                      <span
+                        onClick={e => { e.stopPropagation(); handleDeleteCat(cat.name) }}
+                        className="ml-0.5 text-dim hover:text-expense transition-colors"
+                      >
+                        <X size={10} />
+                      </span>
+                    )}
                   </button>
                 )
               })}

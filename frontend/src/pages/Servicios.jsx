@@ -104,7 +104,7 @@ function IconPicker({ value, color, onChange }) {
   const Icon = getServiceIcon(value)
 
   return (
-    <div className="flex flex-col items-center gap-3">
+    <div className="flex flex-col items-center relative">
       <button
         type="button"
         onClick={() => setOpen(v => !v)}
@@ -116,26 +116,32 @@ function IconPicker({ value, color, onChange }) {
       </button>
 
       {open && (
-        <div className="w-full bg-well border border-line rounded-2xl p-3">
-          <p className="text-[10px] text-dim mb-2 text-center">Seleccioná un ícono</p>
-          <div className="grid grid-cols-6 gap-1.5">
-            {SERVICE_ICONS.map(({ key, Icon: I }) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => { onChange(key); setOpen(false) }}
-                className={`h-10 rounded-xl flex items-center justify-center transition-colors ${
-                  value === key
-                    ? 'ring-2 ring-offset-1 ring-offset-well'
-                    : 'hover:bg-brand-500/10 text-dim hover:text-ink'
-                }`}
-                style={value === key ? { color, ringColor: color } : {}}
-              >
-                <I size={18} />
-              </button>
-            ))}
+        <>
+          {/* Capa para cerrar al tocar fuera */}
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+
+          {/* Dropdown flotante */}
+          <div className="absolute top-full mt-2 z-20 bg-panel border border-line rounded-2xl p-3 shadow-xl w-64">
+            <p className="text-[10px] text-dim mb-2 text-center">Seleccioná un ícono</p>
+            <div className="grid grid-cols-6 gap-1.5">
+              {SERVICE_ICONS.map(({ key, Icon: I }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => { onChange(key); setOpen(false) }}
+                  className={`h-10 rounded-xl flex items-center justify-center transition-colors ${
+                    value === key
+                      ? 'ring-2 ring-offset-1 ring-offset-panel'
+                      : 'hover:bg-brand-500/10 text-dim hover:text-ink'
+                  }`}
+                  style={value === key ? { color } : {}}
+                >
+                  <I size={18} />
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   )

@@ -32,24 +32,33 @@ export default function Perfil() {
   const handleAvatarChange = async (e) => {
     const file = e.target.files?.[0]
     if (!file || !user) return
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast('La imagen no puede superar 2 MB', 'error')
+      return
+    }
+
     setUploading(true)
     try {
-      const ext = file.name.split('.').pop()
+      const ext = file.name.split('.').pop().toLowerCase() || 'jpg'
       const path = `${user.id}/avatar.${ext}`
+
       const { error: upErr } = await supabase.storage
-        .from('avatares')
-        .upload(path, file, { upsert: true })
+        .from('avatars')
+        .upload(path, file, { upsert: true, contentType: file.type })
       if (upErr) throw upErr
 
-      const { data: { publicUrl } } = supabase.storage.from('avatares').getPublicUrl(path)
+      const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
       const urlFinal = `${publicUrl}?t=${Date.now()}`
       await updateMut.mutateAsync({ avatar_url: urlFinal })
       setAvatarUrl(urlFinal)
-      toast('Avatar actualizado', 'success')
-    } catch {
-      toast('Error al subir la imagen', 'error')
+      toast('Foto actualizada', 'success')
+    } catch (err) {
+      toast(err?.message ?? 'Error al subir la imagen', 'error')
     } finally {
       setUploading(false)
+      // Limpiar input para permitir subir el mismo archivo de nuevo
+      if (fileRef.current) fileRef.current.value = ''
     }
   }
 

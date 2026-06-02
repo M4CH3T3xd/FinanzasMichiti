@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { format, startOfMonth, endOfMonth, subMonths, isToday, isYesterday } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Link } from 'react-router-dom'
@@ -9,15 +9,15 @@ import {
 } from 'recharts'
 import { useTransacciones, usePresupuestos, useServicios } from '../hooks/queries'
 import { useCurrency } from '../context/CurrencyContext'
+import { useSettings } from '../context/SettingsContext'
 import { getCategoryMeta } from '../lib/categoryMeta'
 import { daysUntilDue, isPaidThisMonth } from '../utils/serviceDates'
 
 const now = new Date()
-const mesActualFrom  = format(startOfMonth(now), 'yyyy-MM-dd')
-const mesActualTo    = format(endOfMonth(now),   'yyyy-MM-dd')
-const mesAntFrom     = format(startOfMonth(subMonths(now, 1)), 'yyyy-MM-dd')
-const mesAntTo       = format(endOfMonth(subMonths(now, 1)),   'yyyy-MM-dd')
-const seisMesesFrom  = format(startOfMonth(subMonths(now, 5)), 'yyyy-MM-dd')
+const mesActualFrom = format(startOfMonth(now), 'yyyy-MM-dd')
+const mesActualTo   = format(endOfMonth(now),   'yyyy-MM-dd')
+const mesAntFrom    = format(startOfMonth(subMonths(now, 1)), 'yyyy-MM-dd')
+const mesAntTo      = format(endOfMonth(subMonths(now, 1)),   'yyyy-MM-dd')
 
 function relDate(fechaStr) {
   const d = new Date(fechaStr + 'T00:00:00')
@@ -38,6 +38,7 @@ const CHART_TYPES = [
 
 export default function Dashboard() {
   const { format: fmt } = useCurrency()
+  const { historyMonths } = useSettings()
   const [chartType, setChartType] = useState(
     () => localStorage.getItem('dashboard_chart') || 'dona'
   )
@@ -49,7 +50,8 @@ export default function Dashboard() {
 
   const { data: txActual   = [] } = useTransacciones({ from: mesActualFrom, to: mesActualTo })
   const { data: txAnterior = [] } = useTransacciones({ from: mesAntFrom,    to: mesAntTo    })
-  const { data: txHistorico = [] } = useTransacciones({ from: seisMesesFrom, to: mesActualTo })
+  const historicFrom = format(startOfMonth(subMonths(now, historyMonths - 1)), 'yyyy-MM-dd')
+  const { data: txHistorico = [] } = useTransacciones({ from: historicFrom, to: mesActualTo })
   const { data: ultimos    = [] } = useTransacciones({ limit: 5 })
   const { data: presupuestos = [] } = usePresupuestos()
   const { data: servicios    = [] } = useServicios()
@@ -73,8 +75,8 @@ export default function Dashboard() {
 
   const chartDataMensual = useMemo(() => {
     // Armar los 6 meses como slots vacíos para que no falten meses sin transacciones
-    const meses = Array.from({ length: 6 }, (_, i) => {
-      const d = subMonths(now, 5 - i)
+    const meses = Array.from({ length: historyMonths }, (_, i) => {
+      const d = subMonths(now, historyMonths - 1 - i)
       return {
         key: format(d, 'yyyy-MM'),
         label: format(d, 'MMM', { locale: es }).replace(/^\w/, c => c.toUpperCase()),
@@ -95,7 +97,7 @@ export default function Dashboard() {
       acum += m.ingresos - m.gastos
       return { ...m, balanceAcum: acum }
     })
-  }, [txHistorico])
+  }, [txHistorico, historyMonths])
 
   const serviciosProximos = useMemo(() =>
     servicios

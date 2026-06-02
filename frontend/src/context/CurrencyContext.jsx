@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { useSettings } from './SettingsContext'
 
 const CurrencyContext = createContext()
 
@@ -34,6 +35,7 @@ async function fetchRates() {
 }
 
 export function CurrencyProvider({ children }) {
+  const { isPrivate } = useSettings()
   const [currency, setCurrencyState] = useState(() => localStorage.getItem('currency') || 'ARS')
   const [rates, setRates] = useState(null)
 
@@ -83,15 +85,16 @@ export function CurrencyProvider({ children }) {
   const setCurrency = useCallback(async (code) => {
     setCurrencyState(code)
     localStorage.setItem('currency', code)
-    const { data: { session } } = await supabase.auth.getSession()
-    if (session?.user) {
-      await supabase.from('user_profiles').update({ currency: code }).eq('id', session.user.id)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      await supabase.from('user_profiles').update({ currency: code }).eq('id', user.id)
     }
   }, [])
 
   const format = useCallback(
     (amount) => {
       if (amount == null) return ''
+      if (isPrivate) return '••••'
       const cur = CURRENCIES.find((c) => c.code === currency) ?? CURRENCIES[0]
       const decimals = ['CLP', 'ARS', 'BRL', 'UYU'].includes(currency) ? 0 : 2
       return `${cur.symbol}${Math.abs(amount).toLocaleString(cur.locale, {
@@ -99,7 +102,7 @@ export function CurrencyProvider({ children }) {
         maximumFractionDigits: decimals,
       })}`
     },
-    [currency]
+    [currency, isPrivate]
   )
 
   const convert = useCallback(

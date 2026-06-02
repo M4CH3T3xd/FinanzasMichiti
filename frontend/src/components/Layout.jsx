@@ -5,6 +5,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useCurrency } from '../context/CurrencyContext'
+import { useServiceNotifications } from '../hooks/useServiceNotifications'
 import SideDrawer from './SideDrawer'
 
 const navItems = [
@@ -36,6 +37,8 @@ export default function Layout() {
   const { isAdmin, user, profile } = useAuth()
   const { getCurrency } = useCurrency()
   const [drawerOpen, setDrawerOpen] = useState(false)
+
+  useServiceNotifications()
 
   const cur         = getCurrency()
   const initial     = (profile?.apodo || profile?.nombre || user?.email || '?')[0].toUpperCase()

@@ -4,6 +4,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClient } from './lib/queryClient'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
+import { SettingsProvider } from './context/SettingsContext'
 import { CurrencyProvider } from './context/CurrencyContext'
 import { ToastProvider } from './context/ToastContext'
 import Layout from './components/Layout'
@@ -16,6 +17,9 @@ const Deudas        = lazy(() => import('./pages/Deudas'))
 const Servicios     = lazy(() => import('./pages/Servicios'))
 const Metas         = lazy(() => import('./pages/Metas'))
 const Perfil        = lazy(() => import('./pages/Perfil'))
+const Ajustes       = lazy(() => import('./pages/Ajustes'))
+const Conversor     = lazy(() => import('./pages/Conversor'))
+const Exportar      = lazy(() => import('./pages/Exportar'))
 const Admin         = lazy(() => import('./pages/Admin'))
 
 function PageLoader() {
@@ -44,6 +48,7 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
+        <SettingsProvider>
         <CurrencyProvider>
           <ToastProvider>
             <AuthProvider>
@@ -66,6 +71,9 @@ export default function App() {
                       <Route path="metas"         element={<Metas />} />
                       <Route path="deudas"        element={<Deudas />} />
                       <Route path="perfil"        element={<Perfil />} />
+                      <Route path="ajustes"       element={<Ajustes />} />
+                      <Route path="conversor"     element={<Conversor />} />
+                      <Route path="exportar"      element={<Exportar />} />
                       <Route
                         path="admin"
                         element={
@@ -81,6 +89,7 @@ export default function App() {
             </AuthProvider>
           </ToastProvider>
         </CurrencyProvider>
+        </SettingsProvider>
       </ThemeProvider>
     </QueryClientProvider>
   )

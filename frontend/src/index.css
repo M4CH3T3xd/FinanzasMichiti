@@ -41,9 +41,9 @@
   --ink:       #f5f5f5;
   --dim:       #737373;
   --brand-50:  #fafafa;
-  --brand-500: #e5e5e5;
-  --brand-600: #d4d4d4;
-  --income:    #e5e5e5;
+  --brand-500: #525252;
+  --brand-600: #404040;
+  --income:    #a3a3a3;
   --expense:   #737373;
   color-scheme: dark;
 }
@@ -98,6 +98,16 @@ html, body {
 
 @layer utilities {
   .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+}
+
+/* ── COMPACT MODE ─────────────────────────────────── */
+[data-compact="true"] .space-y-2 > * + * { margin-top: 0.25rem; }
+[data-compact="true"] .space-y-3 > * + * { margin-top: 0.25rem; }
+[data-compact="true"] .space-y-2 > * > .p-3,
+[data-compact="true"] .space-y-2 > .p-3,
+[data-compact="true"] .space-y-3 > .p-3 {
+  padding-top:    0.375rem;
+  padding-bottom: 0.375rem;
 }
 
 @keyframes toast-in {

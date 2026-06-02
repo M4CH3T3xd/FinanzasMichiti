@@ -5,10 +5,10 @@ import { useAuth } from '../context/AuthContext'
 import { useCurrency } from '../context/CurrencyContext'
 
 const menuItems = [
-  { icon: User,           label: 'Mi perfil',       sub: 'Foto, nombre y apodo',     to: '/perfil' },
-  { icon: Settings,       label: 'Ajustes',          sub: 'Tema y apariencia',        to: '/perfil#ajustes' },
-  { icon: ArrowLeftRight, label: 'Conversor',        sub: 'Equivalencias de moneda',  to: '/perfil#conversor' },
-  { icon: FileDown,       label: 'Exportar resumen', sub: 'PDF del mes',              to: '/perfil#exportar' },
+  { icon: User,           label: 'Mi perfil',       sub: 'Foto, nombre y apodo',    to: '/perfil' },
+  { icon: Settings,       label: 'Ajustes',          sub: 'Tema y apariencia',       to: '/ajustes' },
+  { icon: ArrowLeftRight, label: 'Conversor',        sub: 'Equivalencias de moneda', to: '/conversor' },
+  { icon: FileDown,       label: 'Exportar resumen', sub: 'PDF del mes',             to: '/exportar' },
 ]
 
 export default function SideDrawer({ open, onClose }) {

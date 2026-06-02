@@ -47,6 +47,16 @@ export function saveCustomCategoryMeta(nombre, icon, color) {
   localStorage.setItem('category_meta', JSON.stringify(meta))
 }
 
+export function getCustomCategories() {
+  return Object.keys(getCustomMeta())
+}
+
+export function deleteCustomCategory(nombre) {
+  const meta = getCustomMeta()
+  delete meta[nombre]
+  localStorage.setItem('category_meta', JSON.stringify(meta))
+}
+
 export const COLOR_OPTIONS = [
   '#f59e0b','#ef4444','#3b82f6','#8b5cf6',
   '#ec4899','#10b981','#7c6af7','#64748b',

@@ -7,7 +7,10 @@ import {
 } from '../hooks/queries'
 import { useCurrency } from '../context/CurrencyContext'
 import { useToast } from '../context/ToastContext'
-import { getCategoryMeta, DEFAULT_CATEGORIES_EXPENSE, DEFAULT_CATEGORIES_INCOME } from '../lib/categoryMeta'
+import {
+  getCategoryMeta, DEFAULT_CATEGORIES_EXPENSE, DEFAULT_CATEGORIES_INCOME,
+  getCustomCategories, saveCustomCategoryMeta, ICON_OPTIONS, COLOR_OPTIONS,
+} from '../lib/categoryMeta'
 
 function fmtDate(fechaStr) {
   return format(new Date(fechaStr + 'T00:00:00'), "d MMM", { locale: es })
@@ -295,7 +298,29 @@ function TransaccionModal({ tx, defaultDate, onSave, onClose, saving }) {
   const [desc,  setDesc]  = useState(tx?.descripcion || '')
   const [fecha, setFecha] = useState(tx?.fecha || defaultDate || format(new Date(), 'yyyy-MM-dd'))
 
-  const cats = tipo === 'ingreso' ? DEFAULT_CATEGORIES_INCOME : DEFAULT_CATEGORIES_EXPENSE
+  // Categorías custom (estado local sincronizado con localStorage)
+  const [customCats, setCustomCats] = useState(() => getCustomCategories())
+
+  // Form nueva categoría
+  const [showNew,   setShowNew]   = useState(false)
+  const [newName,   setNewName]   = useState('')
+  const [newIcon,   setNewIcon]   = useState('tag')
+  const [newColor,  setNewColor]  = useState('#7c6af7')
+
+  const defaults = tipo === 'ingreso' ? DEFAULT_CATEGORIES_INCOME : DEFAULT_CATEGORIES_EXPENSE
+  const allCats  = [...defaults, ...customCats.filter(c => !defaults.includes(c))]
+
+  const handleCreateCat = () => {
+    const name = newName.trim()
+    if (!name) return
+    saveCustomCategoryMeta(name, newIcon, newColor)
+    setCustomCats(prev => prev.includes(name) ? prev : [...prev, name])
+    setCat(name)
+    setNewName('')
+    setNewIcon('tag')
+    setNewColor('#7c6af7')
+    setShowNew(false)
+  }
 
   const handleSubmit = (e) => {
     e.preventDefault()
@@ -317,9 +342,7 @@ function TransaccionModal({ tx, defaultDate, onSave, onClose, saving }) {
           {/* Toggle gasto / ingreso */}
           <div className="grid grid-cols-2 gap-1.5 bg-well rounded-xl p-1">
             {['gasto', 'ingreso'].map(t => (
-              <button
-                key={t}
-                type="button"
+              <button key={t} type="button"
                 onClick={() => { setTipo(t); setCat('') }}
                 className={`py-2 rounded-lg text-sm font-medium transition-colors ${
                   tipo === t
@@ -347,12 +370,11 @@ function TransaccionModal({ tx, defaultDate, onSave, onClose, saving }) {
           <div>
             <label className="text-xs text-dim mb-1.5 block">Categoría</label>
             <div className="flex flex-wrap gap-2">
-              {cats.map(c => {
+              {allCats.map(c => {
                 const meta = getCategoryMeta(c)
                 const Icon = meta.icon
                 return (
-                  <button
-                    key={c} type="button" onClick={() => setCat(c)}
+                  <button key={c} type="button" onClick={() => setCat(c)}
                     className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs border transition-colors ${
                       cat === c
                         ? 'border-brand-500 bg-brand-500/10 text-ink'
@@ -364,7 +386,88 @@ function TransaccionModal({ tx, defaultDate, onSave, onClose, saving }) {
                   </button>
                 )
               })}
+              {/* Botón nueva categoría */}
+              <button type="button" onClick={() => setShowNew(v => !v)}
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs border transition-colors ${
+                  showNew
+                    ? 'border-brand-500 bg-brand-500/10 text-brand-500'
+                    : 'border-dashed border-line text-dim hover:border-brand-500/40 hover:text-ink'
+                }`}
+              >
+                <Plus size={12} /> Nueva
+              </button>
             </div>
+
+            {/* Formulario inline nueva categoría */}
+            {showNew && (
+              <div className="mt-3 p-3 bg-well border border-line rounded-xl space-y-3">
+                <input
+                  type="text" placeholder="Nombre de la categoría"
+                  value={newName} onChange={e => setNewName(e.target.value)}
+                  className="w-full bg-panel border border-line rounded-lg px-3 py-2 text-sm text-ink placeholder-dim focus:outline-none focus:border-brand-500"
+                  autoFocus
+                />
+
+                {/* Selector de ícono */}
+                <div>
+                  <p className="text-xs text-dim mb-1.5">Ícono</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {ICON_OPTIONS.map(({ key, icon: Icon }) => (
+                      <button key={key} type="button"
+                        onClick={() => setNewIcon(key)}
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                          newIcon === key
+                            ? 'bg-brand-500/20 text-brand-500 border border-brand-500/50'
+                            : 'bg-panel border border-line text-dim hover:text-ink'
+                        }`}
+                      >
+                        <Icon size={15} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Selector de color */}
+                <div>
+                  <p className="text-xs text-dim mb-1.5">Color</p>
+                  <div className="flex flex-wrap gap-2">
+                    {COLOR_OPTIONS.map(c => (
+                      <button key={c} type="button"
+                        onClick={() => setNewColor(c)}
+                        className={`w-6 h-6 rounded-full transition-transform ${newColor === c ? 'scale-125 ring-2 ring-offset-1 ring-offset-well' : 'hover:scale-110'}`}
+                        style={{ background: c, ringColor: c }}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Preview + confirmar */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-xs text-dim">
+                    {newName && (
+                      <>
+                        {(() => {
+                          const Icon = ICON_OPTIONS.find(o => o.key === newIcon)?.icon
+                          return Icon ? <Icon size={14} style={{ color: newColor }} /> : null
+                        })()}
+                        <span className="text-ink">{newName || 'Vista previa'}</span>
+                      </>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setShowNew(false)}
+                      className="px-3 py-1.5 text-xs text-dim bg-panel border border-line rounded-lg hover:text-ink">
+                      Cancelar
+                    </button>
+                    <button type="button" onClick={handleCreateCat}
+                      disabled={!newName.trim()}
+                      className="px-3 py-1.5 text-xs text-white bg-brand-500 rounded-lg hover:bg-brand-600 disabled:opacity-50">
+                      Crear
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Descripción */}
@@ -388,8 +491,7 @@ function TransaccionModal({ tx, defaultDate, onSave, onClose, saving }) {
             />
           </div>
 
-          <button
-            type="submit"
+          <button type="submit"
             disabled={saving || !monto || !cat}
             className="w-full py-3 bg-brand-500 hover:bg-brand-600 text-white font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >

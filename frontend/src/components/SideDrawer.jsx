@@ -6,7 +6,7 @@ import { useCurrency } from '../context/CurrencyContext'
 
 const menuItems = [
   { icon: User,           label: 'Mi perfil',       sub: 'Foto, nombre y apodo',    to: '/perfil' },
-  { icon: Settings,       label: 'Ajustes',          sub: 'Tema y apariencia',       to: '/perfil' },
+  { icon: Settings,       label: 'Ajustes',          sub: 'Tema y apariencia',       to: '/ajustes' },
   { icon: ArrowLeftRight, label: 'Conversor',        sub: 'Equivalencias de moneda', to: '/conversor' },
   { icon: FileDown,       label: 'Exportar resumen', sub: 'PDF del mes',             to: '/exportar' },
 ]

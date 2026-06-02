@@ -83,9 +83,9 @@ export function CurrencyProvider({ children }) {
   const setCurrency = useCallback(async (code) => {
     setCurrencyState(code)
     localStorage.setItem('currency', code)
-    const { data: { session } } = await supabase.auth.getSession()
-    if (session?.user) {
-      await supabase.from('user_profiles').update({ currency: code }).eq('id', session.user.id)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      await supabase.from('user_profiles').update({ currency: code }).eq('id', user.id)
     }
   }, [])
 

@@ -1,17 +1,13 @@
 import { useState, useRef, useEffect } from 'react'
-import { User, Palette, Camera, Save, RefreshCw, LogOut } from 'lucide-react'
+import { User, Camera, Save, RefreshCw, LogOut } from 'lucide-react'
 import { useProfile, useUpdateProfile } from '../hooks/queries'
 import { useAuth } from '../context/AuthContext'
-import { useCurrency, CURRENCIES } from '../context/CurrencyContext'
-import { useTheme, THEMES } from '../context/ThemeContext'
 import { useToast } from '../context/ToastContext'
 import { supabase } from '../lib/supabase'
 
 export default function Perfil() {
   const { user, logout } = useAuth()
   const { toast } = useToast()
-  const { theme, setTheme } = useTheme()
-  const { currency, setCurrency } = useCurrency()
   const { data: profile } = useProfile()
   const updateMut = useUpdateProfile()
 
@@ -133,54 +129,6 @@ export default function Perfil() {
             <Save size={14} />
             {updateMut.isPending ? 'Guardando...' : 'Guardar cambios'}
           </button>
-        </div>
-      </div>
-
-      {/* Tema */}
-      <div className="bg-panel border border-line rounded-2xl overflow-hidden">
-        <div className="flex items-center gap-2 px-5 py-4 border-b border-line">
-          <Palette size={16} className="text-brand-500" />
-          <h2 className="text-sm font-semibold text-ink">Apariencia</h2>
-        </div>
-        <div className="p-5 space-y-4">
-          <div>
-            <p className="text-xs text-dim mb-3">Tema</p>
-            <div className="grid grid-cols-4 gap-2">
-              {THEMES.map(t => (
-                <button
-                  key={t.id}
-                  onClick={() => setTheme(t.id)}
-                  className={`py-2 text-sm rounded-xl border transition-colors ${
-                    theme === t.id
-                      ? 'border-brand-500 bg-brand-500/10 text-brand-500 font-medium'
-                      : 'border-line bg-well text-dim hover:text-ink'
-                  }`}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <p className="text-xs text-dim mb-3">Moneda principal</p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {CURRENCIES.map(c => (
-                <button
-                  key={c.code}
-                  onClick={() => setCurrency(c.code)}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm transition-colors ${
-                    currency === c.code
-                      ? 'border-brand-500 bg-brand-500/10 text-ink font-medium'
-                      : 'border-line bg-well text-dim hover:text-ink'
-                  }`}
-                >
-                  <span>{c.flag}</span>
-                  <span>{c.code}</span>
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
 

@@ -455,15 +455,16 @@ function ServicioModal({ servicio, onSave, onDelete, onClose, saving, deleting }
   const [confirmDel,    setConfirmDel] = useState(false)
 
   // Categorías custom del usuario
-  const [customCats,  setCustomCats]  = useState(() => getCustomServiceCats())
-  const [showNewCat,  setShowNewCat]  = useState(false)
-  const nuevaBtnRef  = useRef(null)
+  const [customCats,       setCustomCats]       = useState(() => getCustomServiceCats())
+  const [showNewCat,       setShowNewCat]       = useState(false)
+  const [pendingDeleteCat, setPendingDeleteCat] = useState(null)
+  const nuevaBtnRef = useRef(null)
 
-  const handleDeleteCat = (name) => {
+  const handleConfirmDeleteCat = (name) => {
     deleteCustomServiceCat(name)
-    const updated = getCustomServiceCats()
-    setCustomCats(updated)
+    setCustomCats(getCustomServiceCats())
     if (categoria === name) handleSelectCat(DEFAULT_SERVICE_CATS[0])
+    setPendingDeleteCat(null)
   }
 
   const allCats = [...DEFAULT_SERVICE_CATS, ...customCats.filter(c => !DEFAULT_SERVICE_CATS.find(d => d.name === c.name))]
@@ -534,30 +535,43 @@ function ServicioModal({ servicio, onSave, onDelete, onClose, saving, deleting }
               {allCats.map(cat => {
                 const CatIcon  = getServiceIcon(cat.icon)
                 const sel      = categoria === cat.name
-                const isCustom = !DEFAULT_SERVICE_CATS.find(d => d.name === cat.name)
+                const isCustom  = !DEFAULT_SERVICE_CATS.find(d => d.name === cat.name)
+                const isPending = pendingDeleteCat === cat.name
+
+                if (isPending) return (
+                  <div key={cat.name} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs border border-expense/40 bg-expense/10">
+                    <span className="text-expense font-medium">¿Eliminar &ldquo;{cat.name}&rdquo;?</span>
+                    <button type="button" onClick={e => { e.stopPropagation(); setPendingDeleteCat(null) }}
+                      className="px-1.5 py-0.5 rounded bg-well text-dim hover:text-ink transition-colors ml-1">No</button>
+                    <button type="button" onClick={e => { e.stopPropagation(); handleConfirmDeleteCat(cat.name) }}
+                      className="px-1.5 py-0.5 rounded bg-expense text-white font-medium hover:opacity-90 transition-opacity">Sí</button>
+                  </div>
+                )
+
                 return (
                   <button
                     key={cat.name} type="button"
                     onClick={() => handleSelectCat(cat)}
                     className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs border transition-colors ${
-                      sel
-                        ? 'border-brand-500 bg-brand-500/10 text-ink'
-                        : 'border-line bg-well text-dim hover:border-brand-500/40 hover:text-ink'
+                      sel ? 'border-brand-500 bg-brand-500/10 text-ink' : 'border-line bg-well text-dim hover:border-brand-500/40 hover:text-ink'
                     }`}
                   >
                     <CatIcon size={12} style={{ color: cat.color }} />
                     {cat.name}
                     {isCustom && (
-                      <span
-                        onClick={e => { e.stopPropagation(); handleDeleteCat(cat.name) }}
-                        className="ml-0.5 text-dim hover:text-expense transition-colors"
-                      >
+                      <span onClick={e => { e.stopPropagation(); setPendingDeleteCat(cat.name) }}
+                        className="ml-0.5 text-dim hover:text-expense transition-colors">
                         <X size={10} />
                       </span>
                     )}
                   </button>
                 )
               })}
+              {pendingDeleteCat && (
+                <p className="w-full text-[10px] text-yellow-400 mt-1">
+                  Los servicios existentes con esta categoría mantendrán el nombre pero perderán el ícono y color.
+                </p>
+              )}
 
               {/* Botón Nueva */}
               <button

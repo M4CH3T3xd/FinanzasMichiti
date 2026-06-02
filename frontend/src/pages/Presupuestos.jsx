@@ -295,12 +295,14 @@ function PresupuestoModal({ presupuesto, categoriasUsadas, onSave, onDelete, onC
 
   const [categoria,  setCategoria]  = useState(presupuesto?.categoria || '')
   const [limite,     setLimite]     = useState(presupuesto?.limite?.toString() || '')
-  const [confirmDel, setConfirmDel] = useState(false)
+  const [confirmDel,       setConfirmDel]       = useState(false)
+  const [pendingDeleteCat, setPendingDeleteCat] = useState(null)
 
-  const handleDeleteCat = (name) => {
+  const handleConfirmDeleteCat = (name) => {
     deleteCustomCategory(name)
     setCustomCats(getCustomCategories())
     if (categoria === name) setCategoria('')
+    setPendingDeleteCat(null)
   }
 
   const handleSubmit = (e) => {
@@ -336,9 +338,21 @@ function PresupuestoModal({ presupuesto, categoriasUsadas, onSave, onDelete, onC
             ) : (
               <div className="flex flex-wrap gap-2 items-center">
                 {catsDisponibles.map(c => {
-                  const meta     = getCategoryMeta(c)
-                  const Icon     = meta.icon
-                  const isCustom = !DEFAULT_CATEGORIES_EXPENSE.includes(c)
+                  const meta      = getCategoryMeta(c)
+                  const Icon      = meta.icon
+                  const isCustom  = !DEFAULT_CATEGORIES_EXPENSE.includes(c)
+                  const isPending = pendingDeleteCat === c
+
+                  if (isPending) return (
+                    <div key={c} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs border border-expense/40 bg-expense/10">
+                      <span className="text-expense font-medium">¿Eliminar &ldquo;{c}&rdquo;?</span>
+                      <button type="button" onClick={e => { e.stopPropagation(); setPendingDeleteCat(null) }}
+                        className="px-1.5 py-0.5 rounded bg-well text-dim hover:text-ink transition-colors ml-1">No</button>
+                      <button type="button" onClick={e => { e.stopPropagation(); handleConfirmDeleteCat(c) }}
+                        className="px-1.5 py-0.5 rounded bg-expense text-white font-medium hover:opacity-90 transition-opacity">Sí</button>
+                    </div>
+                  )
+
                   return (
                     <button key={c} type="button" onClick={() => setCategoria(c)}
                       className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs border transition-colors ${
@@ -348,7 +362,7 @@ function PresupuestoModal({ presupuesto, categoriasUsadas, onSave, onDelete, onC
                       <Icon size={12} style={{ color: meta.color }} />
                       {c}
                       {isCustom && (
-                        <span onClick={e => { e.stopPropagation(); handleDeleteCat(c) }}
+                        <span onClick={e => { e.stopPropagation(); setPendingDeleteCat(c) }}
                           className="ml-0.5 text-dim hover:text-expense transition-colors">
                           <X size={10} />
                         </span>
@@ -356,6 +370,11 @@ function PresupuestoModal({ presupuesto, categoriasUsadas, onSave, onDelete, onC
                     </button>
                   )
                 })}
+                {pendingDeleteCat && (
+                  <p className="w-full text-[10px] text-yellow-400 mt-1">
+                    Los presupuestos y transacciones con esta categoría mantendrán el nombre pero perderán el ícono y color.
+                  </p>
+                )}
                 <button ref={nuevaBtnRef} type="button" onClick={() => setShowNewCat(v => !v)}
                   className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs border transition-colors ${
                     showNewCat ? 'border-brand-500 bg-brand-500/10 text-brand-500' : 'border-dashed border-line text-dim hover:border-brand-500/40 hover:text-ink'

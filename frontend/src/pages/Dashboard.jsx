@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect } from 'react'
 import { format, startOfMonth, endOfMonth, subMonths, isToday, isYesterday } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Link } from 'react-router-dom'
-import { TrendingUp, TrendingDown, Wallet, ArrowRight, Clock, AlertTriangle } from 'lucide-react'
+import { TrendingUp, TrendingDown, Wallet, ArrowRight, Clock, AlertTriangle, Maximize2, X } from 'lucide-react'
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   ComposedChart, Bar, XAxis, YAxis, Line, CartesianGrid, Legend,
@@ -40,6 +40,7 @@ const CHART_TYPES = [
 export default function Dashboard() {
   const { format: fmt } = useCurrency()
   const { historyMonths } = useSettings()
+  const [expandDona, setExpandDona] = useState(false)
   const [chartType, setChartType] = useState(
     () => localStorage.getItem('dashboard_chart') || 'dona'
   )
@@ -173,37 +174,47 @@ export default function Dashboard() {
                 <h2 className="text-sm font-semibold text-ink">
                   {chartType === 'dona' ? 'Gastos por categoría' : 'Últimos 6 meses'}
                 </h2>
-                <div className="flex gap-1 bg-well rounded-lg p-0.5">
-                  {CHART_TYPES.map(t => (
+                <div className="flex items-center gap-1">
+                  {chartType === 'dona' && donaData.length > 0 && (
                     <button
-                      key={t.key}
-                      onClick={() => handleChartType(t.key)}
-                      className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
-                        chartType === t.key
-                          ? 'bg-brand-500 text-white'
-                          : 'text-dim hover:text-ink'
-                      }`}
+                      onClick={() => setExpandDona(true)}
+                      title="Ver detalle completo"
+                      className="p-1.5 text-dim hover:text-brand-500 hover:bg-brand-500/10 rounded-lg transition-colors"
                     >
-                      {t.label}
+                      <Maximize2 size={14} />
                     </button>
-                  ))}
+                  )}
+                  <div className="flex gap-1 bg-well rounded-lg p-0.5">
+                    {CHART_TYPES.map(t => (
+                      <button
+                        key={t.key}
+                        onClick={() => handleChartType(t.key)}
+                        className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
+                          chartType === t.key
+                            ? 'bg-brand-500 text-white'
+                            : 'text-dim hover:text-ink'
+                        }`}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
               {/* Dona */}
               {chartType === 'dona' && donaData.length > 0 && (
-                <div className="flex flex-col sm:flex-row items-start gap-4">
-                  {/* Gráfico fijo */}
-                  <div className="w-40 h-40 shrink-0 mx-auto sm:mx-0">
+                <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
+                  {/* Donut clickeable */}
+                  <button
+                    onClick={() => setExpandDona(true)}
+                    className="relative w-40 h-40 shrink-0 group focus:outline-none"
+                    title="Ver detalle completo"
+                  >
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
-                        <Pie
-                          data={donaData}
-                          cx="50%" cy="50%"
-                          innerRadius={44} outerRadius={68}
-                          paddingAngle={3}
-                          dataKey="value"
-                        >
+                        <Pie data={donaData} cx="50%" cy="50%"
+                          innerRadius={44} outerRadius={68} paddingAngle={3} dataKey="value">
                           {donaData.map(entry => (
                             <Cell key={entry.name} fill={getCategoryMeta(entry.name).color} />
                           ))}
@@ -216,28 +227,120 @@ export default function Dashboard() {
                         />
                       </PieChart>
                     </ResponsiveContainer>
-                  </div>
-                  {/* Leyenda en 2 columnas — altura fija sin importar cuántas categorías */}
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-3 w-full content-start">
-                    {donaData.map(entry => {
+                    {/* Hint en el hueco central */}
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="flex flex-col items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Maximize2 size={14} className="text-brand-500" />
+                        <span className="text-[9px] text-brand-500 font-medium">Ver más</span>
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Top 3 a la derecha */}
+                  <div className="flex flex-col gap-3 w-full">
+                    {donaData.slice(0, 3).map((entry, i) => {
                       const meta = getCategoryMeta(entry.name)
+                      const Icon = meta.icon
                       const pct  = gastos > 0 ? (entry.value / gastos * 100) : 0
                       return (
-                        <div key={entry.name}>
-                          <div className="flex items-center justify-between mb-1">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: meta.color }} />
+                        <div key={entry.name} className="flex items-center gap-2.5">
+                          <span className="text-[10px] font-bold text-dim w-3 shrink-0 text-center">{i + 1}</span>
+                          <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                            style={{ background: meta.color + '22', color: meta.color }}>
+                            <Icon size={13} />
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-1">
                               <span className="text-xs text-ink truncate">{entry.name}</span>
+                              <span className="text-[10px] text-dim shrink-0 ml-1">{pct.toFixed(0)}%</span>
                             </div>
-                            <span className="text-[10px] text-dim shrink-0 ml-1">{pct.toFixed(0)}%</span>
+                            <div className="h-1 bg-well rounded-full overflow-hidden">
+                              <div className="h-full rounded-full" style={{ width: `${pct}%`, background: meta.color }} />
+                            </div>
                           </div>
-                          <div className="h-1 bg-well rounded-full overflow-hidden mb-1">
-                            <div className="h-full rounded-full" style={{ width: `${pct}%`, background: meta.color }} />
-                          </div>
-                          <span className="text-xs font-medium text-ink">{fmt(entry.value)}</span>
+                          <span className="text-xs font-semibold text-ink shrink-0">{fmt(entry.value)}</span>
                         </div>
                       )
                     })}
+
+                    {/* Pista visual: siempre visible */}
+                    <button
+                      onClick={() => setExpandDona(true)}
+                      className="flex items-center gap-1.5 text-xs text-brand-500 hover:text-brand-600 transition-colors mt-1 group/btn"
+                    >
+                      <Maximize2 size={11} className="group-hover/btn:scale-110 transition-transform" />
+                      {donaData.length > 3
+                        ? `Ver las ${donaData.length} categorías`
+                        : 'Ver detalle completo'}
+                      <ArrowRight size={11} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Modal detalle dona */}
+              {expandDona && (
+                <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+                  <div className="bg-panel border border-line rounded-t-2xl sm:rounded-2xl w-full sm:max-w-sm p-5 max-h-[90vh] overflow-y-auto">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-semibold text-ink">Gastos por categoría</h3>
+                      <button onClick={() => setExpandDona(false)} className="text-dim hover:text-ink transition-colors">
+                        <X size={20} />
+                      </button>
+                    </div>
+
+                    {/* Dona grande */}
+                    <div className="w-44 h-44 mx-auto mb-5">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie data={donaData} cx="50%" cy="50%"
+                            innerRadius={48} outerRadius={80} paddingAngle={3} dataKey="value">
+                            {donaData.map(entry => (
+                              <Cell key={entry.name} fill={getCategoryMeta(entry.name).color} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            formatter={v => fmt(v)}
+                            contentStyle={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 8 }}
+                            labelStyle={{ color: 'var(--ink)' }}
+                            itemStyle={{ color: 'var(--dim)' }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    {/* Lista completa */}
+                    <div className="space-y-3">
+                      {donaData.map(entry => {
+                        const meta = getCategoryMeta(entry.name)
+                        const Icon = meta.icon
+                        const pct  = gastos > 0 ? (entry.value / gastos * 100) : 0
+                        return (
+                          <div key={entry.name} className="flex items-center gap-3">
+                            <span className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                              style={{ background: meta.color + '22', color: meta.color }}>
+                              <Icon size={15} />
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-sm text-ink truncate">{entry.name}</span>
+                                <span className="text-xs text-dim shrink-0 ml-2">{pct.toFixed(1)}%</span>
+                              </div>
+                              <div className="h-1.5 bg-well rounded-full overflow-hidden">
+                                <div className="h-full rounded-full transition-all duration-500"
+                                  style={{ width: `${pct}%`, background: meta.color }} />
+                              </div>
+                            </div>
+                            <span className="text-sm font-semibold text-ink shrink-0">{fmt(entry.value)}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    <div className="mt-4 pt-4 border-t border-line flex items-center justify-between">
+                      <span className="text-sm text-dim">Total gastos del mes</span>
+                      <span className="text-sm font-bold text-ink">{fmt(gastos)}</span>
+                    </div>
                   </div>
                 </div>
               )}

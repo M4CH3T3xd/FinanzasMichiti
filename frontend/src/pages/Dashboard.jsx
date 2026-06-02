@@ -5,8 +5,7 @@ import { Link } from 'react-router-dom'
 import { TrendingUp, TrendingDown, Wallet, ArrowRight, Clock, AlertTriangle } from 'lucide-react'
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
-  BarChart, Bar, XAxis, YAxis, ReferenceLine,
-  AreaChart, Area, CartesianGrid,
+  ComposedChart, Bar, XAxis, YAxis, Line, CartesianGrid, Legend,
 } from 'recharts'
 import { useTransacciones, usePresupuestos, useServicios } from '../hooks/queries'
 import { useCurrency } from '../context/CurrencyContext'
@@ -18,6 +17,7 @@ const mesActualFrom  = format(startOfMonth(now), 'yyyy-MM-dd')
 const mesActualTo    = format(endOfMonth(now),   'yyyy-MM-dd')
 const mesAntFrom     = format(startOfMonth(subMonths(now, 1)), 'yyyy-MM-dd')
 const mesAntTo       = format(endOfMonth(subMonths(now, 1)),   'yyyy-MM-dd')
+const seisMesesFrom  = format(startOfMonth(subMonths(now, 5)), 'yyyy-MM-dd')
 
 function relDate(fechaStr) {
   const d = new Date(fechaStr + 'T00:00:00')
@@ -32,9 +32,8 @@ function pctChange(curr, prev) {
 }
 
 const CHART_TYPES = [
-  { key: 'dona',   label: 'Dona' },
-  { key: 'barras', label: 'Barras' },
-  { key: 'area',   label: 'Área' },
+  { key: 'dona',   label: 'Categorías' },
+  { key: 'barras', label: '6 meses' },
 ]
 
 export default function Dashboard() {
@@ -50,6 +49,7 @@ export default function Dashboard() {
 
   const { data: txActual   = [] } = useTransacciones({ from: mesActualFrom, to: mesActualTo })
   const { data: txAnterior = [] } = useTransacciones({ from: mesAntFrom,    to: mesAntTo    })
+  const { data: txHistorico = [] } = useTransacciones({ from: seisMesesFrom, to: mesActualTo })
   const { data: ultimos    = [] } = useTransacciones({ limit: 5 })
   const { data: presupuestos = [] } = usePresupuestos()
   const { data: servicios    = [] } = useServicios()
@@ -71,20 +71,31 @@ export default function Dashboard() {
       .slice(0, 6)
   }, [txActual])
 
-  const chartDataDiario = useMemo(() => {
-    const byDay = {}
-    txActual.forEach(tx => {
-      if (!byDay[tx.fecha]) byDay[tx.fecha] = {
-        fecha: tx.fecha,
-        label: format(new Date(tx.fecha + 'T00:00:00'), 'd MMM', { locale: es }),
+  const chartDataMensual = useMemo(() => {
+    // Armar los 6 meses como slots vacíos para que no falten meses sin transacciones
+    const meses = Array.from({ length: 6 }, (_, i) => {
+      const d = subMonths(now, 5 - i)
+      return {
+        key: format(d, 'yyyy-MM'),
+        label: format(d, 'MMM', { locale: es }).replace(/^\w/, c => c.toUpperCase()),
+        ingresos: 0,
         gastos: 0,
       }
-      if (tx.tipo === 'gasto') byDay[tx.fecha].gastos += +tx.monto
     })
-    return Object.values(byDay)
-      .filter(d => d.gastos > 0)
-      .sort((a, b) => a.fecha.localeCompare(b.fecha))
-  }, [txActual])
+    txHistorico.forEach(tx => {
+      const key = tx.fecha.slice(0, 7)
+      const slot = meses.find(m => m.key === key)
+      if (!slot) return
+      if (tx.tipo === 'ingreso') slot.ingresos += +tx.monto
+      if (tx.tipo === 'gasto')   slot.gastos   += +tx.monto
+    })
+    // Balance acumulado mes a mes
+    let acum = 0
+    return meses.map(m => {
+      acum += m.ingresos - m.gastos
+      return { ...m, balanceAcum: acum }
+    })
+  }, [txHistorico])
 
   const serviciosProximos = useMemo(() =>
     servicios
@@ -152,12 +163,12 @@ export default function Dashboard() {
           </div>
 
           {/* Gráfico principal */}
-          {(donaData.length > 0 || chartDataDiario.length > 0) && (
+          {(donaData.length > 0 || txHistorico.length > 0) && (
             <div className="bg-panel border border-line rounded-xl p-4">
               {/* Toggle tipo de gráfico */}
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-sm font-semibold text-ink">
-                  {chartType === 'dona' ? 'Gastos por categoría' : 'Gastos por día'}
+                  {chartType === 'dona' ? 'Gastos por categoría' : 'Últimos 6 meses'}
                 </h2>
                 <div className="flex gap-1 bg-well rounded-lg p-0.5">
                   {CHART_TYPES.map(t => (
@@ -223,75 +234,42 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {/* Barras por día */}
-              {chartType === 'barras' && (
-                <>
-                  {ingresos > 0 && (
-                    <div className="flex justify-end mb-2">
-                      <span className="text-xs text-income flex items-center gap-1">
-                        <span className="inline-block w-5 h-px border-t-2 border-dashed border-income" />
-                        Ingresos {fmt(ingresos)}
-                      </span>
-                    </div>
-                  )}
-                  <ResponsiveContainer width="100%" height={160}>
-                    <BarChart data={chartDataDiario} margin={{ top: 8, right: 0, left: 0, bottom: 0 }} barCategoryGap="30%">
-                      <XAxis dataKey="label" tick={{ fill: '#5a5a7a', fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                      <YAxis hide domain={[0, Math.max(ingresos * 1.1, gastos * 1.1, 1)]} />
-                      <Tooltip
-                        contentStyle={{ background: '#111118', border: '1px solid #1c1c2e', borderRadius: 8, fontSize: 12 }}
-                        labelStyle={{ color: '#eaeaf0', marginBottom: 2 }}
-                        itemStyle={{ color: '#ff4d6d' }}
-                        formatter={v => [fmt(v), 'Gastos']}
-                        cursor={{ fill: '#ffffff08' }}
-                      />
-                      {ingresos > 0 && <ReferenceLine y={ingresos} stroke="#00e676" strokeDasharray="5 3" strokeWidth={1.5} />}
-                      <Bar dataKey="gastos" fill="#ff4d6d" radius={[3, 3, 0, 0]} maxBarSize={36} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                  {chartDataDiario.length === 0 && (
-                    <p className="text-dim text-sm text-center py-8">Sin gastos este mes</p>
-                  )}
-                </>
-              )}
-
-              {/* Área */}
-              {chartType === 'area' && (
-                <>
-                  {ingresos > 0 && (
-                    <div className="flex justify-end mb-2">
-                      <span className="text-xs text-income flex items-center gap-1">
-                        <span className="inline-block w-5 h-px border-t-2 border-dashed border-income" />
-                        Ingresos {fmt(ingresos)}
-                      </span>
-                    </div>
-                  )}
-                  <ResponsiveContainer width="100%" height={160}>
-                    <AreaChart data={chartDataDiario} margin={{ top: 8, right: 0, left: 0, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="gradGastos" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%"  stopColor="#ff4d6d" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="#ff4d6d" stopOpacity={0.02} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1c1c2e" vertical={false} />
-                      <XAxis dataKey="label" tick={{ fill: '#5a5a7a', fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                      <YAxis hide domain={[0, Math.max(ingresos * 1.1, gastos * 1.1, 1)]} />
-                      <Tooltip
-                        contentStyle={{ background: '#111118', border: '1px solid #1c1c2e', borderRadius: 8, fontSize: 12 }}
-                        labelStyle={{ color: '#eaeaf0', marginBottom: 2 }}
-                        itemStyle={{ color: '#ff4d6d' }}
-                        formatter={v => [fmt(v), 'Gastos']}
-                        cursor={{ stroke: '#ffffff20' }}
-                      />
-                      {ingresos > 0 && <ReferenceLine y={ingresos} stroke="#00e676" strokeDasharray="5 3" strokeWidth={1.5} />}
-                      <Area type="monotone" dataKey="gastos" stroke="#ff4d6d" strokeWidth={2} fill="url(#gradGastos)" dot={false} activeDot={{ r: 4, fill: '#ff4d6d' }} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                  {chartDataDiario.length === 0 && (
-                    <p className="text-dim text-sm text-center py-8">Sin gastos este mes</p>
-                  )}
-                </>
+              {/* Mensual: barras + línea acumulada */}
+              {(chartType === 'barras' || chartType === 'area') && (
+                <ResponsiveContainer width="100%" height={180}>
+                  <ComposedChart data={chartDataMensual} margin={{ top: 16, right: 16, left: 0, bottom: 0 }} barCategoryGap="25%">
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1c1c2e" vertical={false} />
+                    <XAxis dataKey="label" tick={{ fill: '#5a5a7a', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis yAxisId="bars" hide />
+                    <YAxis yAxisId="line" orientation="right" hide />
+                    <Tooltip
+                      contentStyle={{ background: '#111118', border: '1px solid #1c1c2e', borderRadius: 8, fontSize: 12 }}
+                      labelStyle={{ color: '#eaeaf0', marginBottom: 4 }}
+                      cursor={{ fill: '#ffffff06' }}
+                      formatter={(v, name) => [
+                        fmt(v),
+                        name === 'ingresos' ? 'Ingresos' : name === 'gastos' ? 'Gastos' : 'Balance acum.',
+                      ]}
+                      itemStyle={{ fontSize: 12 }}
+                    />
+                    <Legend
+                      iconType="circle" iconSize={8}
+                      formatter={v => v === 'ingresos' ? 'Ingresos' : v === 'gastos' ? 'Gastos' : 'Balance acum.'}
+                      wrapperStyle={{ fontSize: 11, color: '#5a5a7a', paddingTop: 8 }}
+                    />
+                    <Bar yAxisId="bars" dataKey="ingresos" fill="#00e676" fillOpacity={0.85} radius={[3, 3, 0, 0]} maxBarSize={28} />
+                    <Bar yAxisId="bars" dataKey="gastos"   fill="#ff4d6d" fillOpacity={0.85} radius={[3, 3, 0, 0]} maxBarSize={28} />
+                    <Line
+                      yAxisId="line"
+                      dataKey="balanceAcum"
+                      stroke="#7c6af7"
+                      strokeWidth={2}
+                      dot={{ r: 3, fill: '#7c6af7', strokeWidth: 0 }}
+                      activeDot={{ r: 5, fill: '#7c6af7' }}
+                      type="monotone"
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
               )}
             </div>
           )}

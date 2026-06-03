@@ -10,6 +10,41 @@ export const keys = {
   deudas:        (uid)          => ['deudas', uid],
   servicios:     (uid)          => ['servicios', uid],
   metas:         (uid)          => ['metas', uid],
+  allProfiles:   ()             => ['admin', 'all_profiles'],
+}
+
+// ── Admin ─────────────────────────────────────────────────────────────────────
+export function useAllProfiles() {
+  const { user, isAdmin } = useAuth()
+  return useQuery({
+    queryKey: keys.allProfiles(),
+    enabled:  !!user && isAdmin,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      return data
+    },
+  })
+}
+
+export function useUpdateUserRole() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, role }) => {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .update({ role })
+        .eq('id', id)
+        .select()
+        .single()
+      if (error) throw error
+      return data
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.allProfiles() }),
+  })
 }
 
 // ── Profile ───────────────────────────────────────────────────────────────────

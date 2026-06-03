@@ -104,7 +104,7 @@ export default function SideDrawer({ open, onClose }) {
             <div className="bg-expense/10 border border-expense/20 rounded-2xl p-3 space-y-2.5">
               <div className="flex items-center gap-2">
                 <AlertTriangle size={14} className="text-expense flex-shrink-0" />
-                <p className="text-sm font-semibold text-expense">¿Seguro que querés salir?</p>
+                <p className="text-sm font-semibold text-expense">¿Seguro que quieres salir?</p>
               </div>
               <div className="flex gap-2">
                 <button

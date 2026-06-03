@@ -4,7 +4,7 @@ import {
   LayoutDashboard, ArrowLeftRight, Target, CreditCard, Repeat, ShieldCheck,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { useCurrency } from '../context/CurrencyContext'
+import { useCurrency, CURRENCIES } from '../context/CurrencyContext'
 import { useServiceNotifications } from '../hooks/useServiceNotifications'
 import SideDrawer from './SideDrawer'
 
@@ -35,8 +35,11 @@ function SideNavItem({ to, icon: Icon, label, end }) {
 
 export default function Layout() {
   const { isAdmin, user, profile } = useAuth()
-  const { getCurrency } = useCurrency()
-  const [drawerOpen, setDrawerOpen] = useState(false)
+  const { getCurrency, setCurrency } = useCurrency()
+  const [drawerOpen,      setDrawerOpen]      = useState(false)
+  const [currencyPending, setCurrencyPending] = useState(
+    () => sessionStorage.getItem('currency_pending') === '1'
+  )
 
   useServiceNotifications()
 
@@ -44,8 +47,44 @@ export default function Layout() {
   const initial     = (profile?.apodo || profile?.nombre || user?.email || '?')[0].toUpperCase()
   const displayName = profile?.apodo || profile?.nombre || user?.email?.split('@')[0]
 
+  const handleSelectCurrency = async (code) => {
+    await setCurrency(code)
+    sessionStorage.removeItem('currency_pending')
+    setCurrencyPending(false)
+  }
+
   return (
     <div className="flex flex-col md:flex-row h-screen bg-canvas overflow-hidden">
+
+      {/* Picker de moneda para usuarios nuevos de Google */}
+      {currencyPending && (
+        <div className="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center p-4">
+          <div className="bg-panel border border-line rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <div className="text-center mb-5">
+              <div className="text-4xl mb-3">💰</div>
+              <h2 className="text-lg font-bold text-ink">¿Cuál es tu moneda?</h2>
+              <p className="text-dim text-sm mt-1">
+                Todos tus montos se mostrarán en esta moneda. Puedes cambiarla después en tu perfil.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {CURRENCIES.map(c => (
+                <button
+                  key={c.code}
+                  onClick={() => handleSelectCurrency(c.code)}
+                  className="flex items-center gap-2.5 p-3 rounded-xl border border-line bg-well hover:border-brand-500 hover:bg-brand-500/10 transition-colors text-left"
+                >
+                  <span className="text-2xl">{c.flag}</span>
+                  <div className="min-w-0">
+                    <p className="text-ink text-xs font-semibold">{c.code}</p>
+                    <p className="text-dim text-xs truncate">{c.name}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
       {/* Sidebar desktop */}
       <aside className="hidden md:flex flex-col w-56 bg-panel border-r border-line fixed h-full z-10">
         <div className="px-4 py-5">

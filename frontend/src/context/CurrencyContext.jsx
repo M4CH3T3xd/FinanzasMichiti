@@ -5,13 +5,13 @@ import { useSettings } from './SettingsContext'
 const CurrencyContext = createContext()
 
 export const CURRENCIES = [
-  { code: 'ARS', symbol: '$',   name: 'Peso Argentino',  flag: '🇦🇷', locale: 'es-AR' },
   { code: 'CLP', symbol: '$',   name: 'Peso Chileno',    flag: '🇨🇱', locale: 'es-CL' },
-  { code: 'UYU', symbol: '$',   name: 'Peso Uruguayo',   flag: '🇺🇾', locale: 'es-UY' },
   { code: 'PEN', symbol: 'S/',  name: 'Sol Peruano',     flag: '🇵🇪', locale: 'es-PE' },
   { code: 'USD', symbol: 'US$', name: 'Dólar',           flag: '🇺🇸', locale: 'en-US' },
+  { code: 'ARS', symbol: '$',   name: 'Peso Argentino',  flag: '🇦🇷', locale: 'es-AR' },
   { code: 'EUR', symbol: '€',   name: 'Euro',            flag: '🇪🇺', locale: 'es-ES' },
   { code: 'BRL', symbol: 'R$',  name: 'Real Brasileño',  flag: '🇧🇷', locale: 'pt-BR' },
+  { code: 'UYU', symbol: '$',   name: 'Peso Uruguayo',   flag: '🇺🇾', locale: 'es-UY' },
 ]
 
 const CACHE_KEY = 'fx_rates'
@@ -53,7 +53,8 @@ export function CurrencyProvider({ children }) {
       const metaCurrency = session.user.user_metadata?.currency
 
       if (!data) {
-        const cur = metaCurrency ?? localStorage.getItem('currency') ?? 'ARS'
+        const isGoogle = session.user.app_metadata?.provider === 'google'
+        const cur = metaCurrency ?? localStorage.getItem('currency') ?? 'CLP'
         await supabase.from('user_profiles').insert({
           id: session.user.id,
           email: session.user.email,
@@ -62,6 +63,8 @@ export function CurrencyProvider({ children }) {
         })
         setCurrencyState(cur)
         localStorage.setItem('currency', cur)
+        // Si entró con Google, pedir que elija su moneda
+        if (isGoogle) sessionStorage.setItem('currency_pending', '1')
         return
       }
 

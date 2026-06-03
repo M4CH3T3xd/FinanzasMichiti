@@ -36,7 +36,7 @@ export default function Login() {
     e.preventDefault(); setError(''); setLoading(true)
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) setError('Email o contraseña incorrectos')
-    else navigate('/')
+    else navigate('/', { replace: true }) // replace para que /login no quede en el historial
     setLoading(false)
   }
 

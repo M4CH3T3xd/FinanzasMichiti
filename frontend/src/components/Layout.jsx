@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Outlet, NavLink, useLocation } from 'react-router-dom'
+import { Outlet, NavLink, useLocation, useBlocker } from 'react-router-dom'
 import {
   LayoutDashboard, ArrowLeftRight, Target, CreditCard, Repeat, ShieldCheck,
   LogOut, X,
@@ -41,28 +41,23 @@ function SideNavItem({ to, icon: Icon, label, end }) {
 export default function Layout() {
   const { isAdmin, user, profile, logout } = useAuth()
   const { getCurrency, setCurrency, currencyPending } = useCurrency()
-  const [drawerOpen,   setDrawerOpen]   = useState(false)
-  const [exitSheet,    setExitSheet]    = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [exitSheet,  setExitSheet]  = useState(false)
   const location = useLocation()
 
   useServiceNotifications()
 
-  // Intercepta el botón de retroceso solo en la pantalla principal y solo en PWA
+  // useBlocker intercepta la navegación ANTES de que React Router la ejecute.
+  // Solo bloquea cuando: PWA standalone + estamos en / + es un POP (back button)
+  const blocker = useBlocker(({ currentLocation, historyAction }) =>
+    isStandalone() &&
+    currentLocation.pathname === '/' &&
+    historyAction === 'POP'
+  )
+
   useEffect(() => {
-    if (!isStandalone()) return
-    if (location.pathname !== '/') return
-
-    // Empuja un estado centinela para que el back button sea interceptable
-    window.history.pushState({ pwaRoot: true }, '')
-
-    const handleBack = () => {
-      window.history.pushState({ pwaRoot: true }, '') // re-empuja para no salir
-      setExitSheet(true)
-    }
-
-    window.addEventListener('popstate', handleBack)
-    return () => window.removeEventListener('popstate', handleBack)
-  }, [location.pathname])
+    if (blocker.state === 'blocked') setExitSheet(true)
+  }, [blocker.state])
 
   const cur         = getCurrency()
   const initial     = (profile?.apodo || profile?.nombre || user?.email || '?')[0].toUpperCase()
@@ -211,7 +206,11 @@ export default function Layout() {
 
             {/* Cerrar sesión */}
             <button
-              onClick={async () => { setExitSheet(false); await logout() }}
+              onClick={async () => {
+                blocker.reset?.()   // cancela la navegación, se queda en /
+                setExitSheet(false)
+                await logout()      // cierra sesión → PrivateRoute redirige a /login
+              }}
               className="w-full flex items-center gap-3 p-4 bg-well rounded-xl border border-line hover:border-expense/40 hover:bg-expense/5 transition-colors text-left"
             >
               <div className="w-9 h-9 rounded-lg bg-expense/10 flex items-center justify-center shrink-0">
@@ -225,7 +224,7 @@ export default function Layout() {
 
             {/* Cancelar */}
             <button
-              onClick={() => setExitSheet(false)}
+              onClick={() => { blocker.reset?.(); setExitSheet(false) }}
               className="w-full py-3 rounded-xl bg-well text-dim text-sm font-medium hover:text-ink transition-colors"
             >
               Cancelar

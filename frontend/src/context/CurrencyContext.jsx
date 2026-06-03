@@ -36,45 +36,46 @@ async function fetchRates() {
 
 export function CurrencyProvider({ children }) {
   const { isPrivate } = useSettings()
-  const [currency, setCurrencyState] = useState(() => localStorage.getItem('currency') || 'ARS')
-  const [rates, setRates] = useState(null)
+  const [currency,        setCurrencyState]    = useState(() => localStorage.getItem('currency') || 'CLP')
+  const [rates,           setRates]            = useState(null)
+  const [currencyPending, setCurrencyPending]  = useState(false)
 
   useEffect(() => { fetchRates().then(setRates) }, [])
 
   useEffect(() => {
     async function syncFromProfile(session) {
       if (!session?.user) return
+
+      const isGoogle     = session.user.app_metadata?.provider === 'google'
+      const confirmedKey = `currency_ok_${session.user.id}`
+      const confirmed    = !!localStorage.getItem(confirmedKey)
+
       const { data } = await supabase
         .from('user_profiles')
         .select('currency')
         .eq('id', session.user.id)
         .single()
 
-      const metaCurrency = session.user.user_metadata?.currency
-
       if (!data) {
-        const isGoogle = session.user.app_metadata?.provider === 'google'
-        const cur = metaCurrency ?? localStorage.getItem('currency') ?? 'CLP'
+        // Usuario nuevo — crear perfil con CLP por defecto
         await supabase.from('user_profiles').insert({
-          id: session.user.id,
-          email: session.user.email,
-          role: 'usuario',
-          currency: cur,
+          id:       session.user.id,
+          email:    session.user.email,
+          role:     'usuario',
+          currency: 'CLP',
         })
-        setCurrencyState(cur)
-        localStorage.setItem('currency', cur)
-        // Si entró con Google, pedir que elija su moneda
-        if (isGoogle) sessionStorage.setItem('currency_pending', '1')
+        setCurrencyState('CLP')
+        localStorage.setItem('currency', 'CLP')
+        // Si es Google, mostrar picker de moneda
+        if (isGoogle && !confirmed) setCurrencyPending(true)
         return
       }
 
-      let finalCurrency = data.currency
-      if (metaCurrency && metaCurrency !== 'ARS' && data.currency === 'ARS') {
-        finalCurrency = metaCurrency
-        await supabase.from('user_profiles').update({ currency: finalCurrency }).eq('id', session.user.id)
-      }
-      setCurrencyState(finalCurrency)
-      localStorage.setItem('currency', finalCurrency)
+      setCurrencyState(data.currency)
+      localStorage.setItem('currency', data.currency)
+
+      // Usuario Google existente que nunca confirmó su moneda
+      if (isGoogle && !confirmed) setCurrencyPending(true)
     }
 
     supabase.auth.getSession().then(({ data: { session } }) => syncFromProfile(session))
@@ -88,9 +89,12 @@ export function CurrencyProvider({ children }) {
   const setCurrency = useCallback(async (code) => {
     setCurrencyState(code)
     localStorage.setItem('currency', code)
+    setCurrencyPending(false)
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
       await supabase.from('user_profiles').update({ currency: code }).eq('id', user.id)
+      // Marcar moneda como confirmada para no volver a preguntar
+      localStorage.setItem(`currency_ok_${user.id}`, '1')
     }
   }, [])
 
@@ -124,7 +128,7 @@ export function CurrencyProvider({ children }) {
   )
 
   return (
-    <CurrencyContext.Provider value={{ currency, setCurrency, rates, format, convert, getCurrency }}>
+    <CurrencyContext.Provider value={{ currency, setCurrency, rates, format, convert, getCurrency, currencyPending }}>
       {children}
     </CurrencyContext.Provider>
   )

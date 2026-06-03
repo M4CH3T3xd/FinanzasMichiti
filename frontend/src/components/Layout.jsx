@@ -35,23 +35,14 @@ function SideNavItem({ to, icon: Icon, label, end }) {
 
 export default function Layout() {
   const { isAdmin, user, profile } = useAuth()
-  const { getCurrency, setCurrency } = useCurrency()
-  const [drawerOpen,      setDrawerOpen]      = useState(false)
-  const [currencyPending, setCurrencyPending] = useState(
-    () => sessionStorage.getItem('currency_pending') === '1'
-  )
+  const { getCurrency, setCurrency, currencyPending } = useCurrency()
+  const [drawerOpen, setDrawerOpen] = useState(false)
 
   useServiceNotifications()
 
   const cur         = getCurrency()
   const initial     = (profile?.apodo || profile?.nombre || user?.email || '?')[0].toUpperCase()
   const displayName = profile?.apodo || profile?.nombre || user?.email?.split('@')[0]
-
-  const handleSelectCurrency = async (code) => {
-    await setCurrency(code)
-    sessionStorage.removeItem('currency_pending')
-    setCurrencyPending(false)
-  }
 
   return (
     <div className="flex flex-col md:flex-row h-screen bg-canvas overflow-hidden">
@@ -71,7 +62,7 @@ export default function Layout() {
               {CURRENCIES.map(c => (
                 <button
                   key={c.code}
-                  onClick={() => handleSelectCurrency(c.code)}
+                  onClick={() => setCurrency(c.code)}
                   className="flex items-center gap-2.5 p-3 rounded-xl border border-line bg-well hover:border-brand-500 hover:bg-brand-500/10 transition-colors text-left"
                 >
                   <span className="text-2xl">{c.flag}</span>

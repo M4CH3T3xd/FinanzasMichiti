@@ -19,7 +19,7 @@ const mesAntTo   = format(endOfMonth(subMonths(now, 1)),   'yyyy-MM-dd')
 export default function Perfil() {
   const { user, logout } = useAuth()
   const { toast } = useToast()
-  const { currency, setCurrency } = useCurrency()
+  const { currency, setCurrency, format: fmt } = useCurrency()
   const { data: profile } = useProfile()
   const updateMut = useUpdateProfile()
 

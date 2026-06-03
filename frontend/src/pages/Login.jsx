@@ -80,17 +80,24 @@ export default function Login() {
   if (success) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-canvas">
-        <div className="w-full max-w-sm text-center space-y-5">
-          <div className="text-6xl">✅</div>
-          <div>
-            <h2 className="text-xl font-bold text-ink">¡Cuenta creada!</h2>
-            <p className="text-dim text-sm mt-2">
-              Revisa tu email para confirmar tu cuenta antes de ingresar.
-            </p>
+        <div className="w-full max-w-sm text-center space-y-6">
+          <div className="text-8xl">✅</div>
+          <div className="space-y-3">
+            <h2 className="text-3xl font-bold text-ink">¡Cuenta creada!</h2>
+            <div className="bg-panel border border-line rounded-2xl p-5">
+              <p className="text-lg font-semibold text-ink mb-1">Verifica tu correo</p>
+              <p className="text-dim">
+                Te enviamos un enlace de confirmación a
+              </p>
+              <p className="text-brand-500 font-semibold mt-1 break-all">{email}</p>
+              <p className="text-dim text-sm mt-3">
+                Revisa también la carpeta de spam si no lo ves.
+              </p>
+            </div>
           </div>
           <button
             onClick={() => switchMode('login')}
-            className="w-full bg-brand-500 hover:bg-brand-600 text-white font-semibold py-3 rounded-xl transition-colors"
+            className="w-full bg-brand-500 hover:bg-brand-600 text-white font-semibold py-3.5 rounded-xl transition-colors text-lg"
           >
             Ir al inicio de sesión
           </button>
@@ -231,8 +238,8 @@ export default function Login() {
               <GoogleIcon />
               Registrarse con Google
             </button>
-            <p className="text-center text-[11px] text-dim">
-              Con Google se usará ARS por defecto — puedes cambiarlo en tu perfil.
+            <p className="text-center text-xs text-dim">
+              Te pediremos elegir tu moneda al ingresar por primera vez.
             </p>
           </div>
         )}

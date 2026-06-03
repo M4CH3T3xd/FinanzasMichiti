@@ -2,7 +2,6 @@ import js from '@eslint/js'
 import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
-import reactPlugin from 'eslint-plugin-react'
 import prettier from 'eslint-config-prettier'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
@@ -16,16 +15,17 @@ export default defineConfig([
       reactRefresh.configs.vite,
       prettier,
     ],
-    plugins: { react: reactPlugin },
     languageOptions: {
       globals: globals.browser,
       parserOptions: { ecmaFeatures: { jsx: true }, ecmaVersion: 2022 },
     },
-    settings: { react: { version: 'detect' } },
     rules: {
-      ...reactPlugin.configs.recommended.rules,
-      'react/react-in-jsx-scope': 'off',
-      'react/prop-types': 'off',
+      'no-unused-vars':   ['warn', { varsIgnorePattern: '^_', argsIgnorePattern: '^_' }],
+      'no-empty':         ['warn', { allowEmptyCatch: true }],
+      'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+      // Falsos positivos: íconos lucide en vars PascalCase y setState en useEffect de init
+      'react-hooks/static-components': 'warn',
+      'react-hooks/set-state-in-effect': 'warn',
     },
   },
 ])

@@ -232,7 +232,7 @@ export default function Login() {
               Registrarse con Google
             </button>
             <p className="text-center text-[11px] text-dim">
-              Con Google se usará ARS por defecto — puedes cambiarlo en tu perfil.
+              Te pediremos elegir tu moneda al ingresar por primera vez.
             </p>
           </div>
         )}

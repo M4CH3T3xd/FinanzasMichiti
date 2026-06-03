@@ -1,12 +1,17 @@
-import { useState } from 'react'
-import { Outlet, NavLink } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, ArrowLeftRight, Target, CreditCard, Repeat, ShieldCheck,
+  LogOut, X,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useCurrency, CURRENCIES } from '../context/CurrencyContext'
 import { useServiceNotifications } from '../hooks/useServiceNotifications'
 import SideDrawer from './SideDrawer'
+
+const isStandalone = () =>
+  window.matchMedia('(display-mode: standalone)').matches ||
+  window.navigator.standalone === true
 
 const navItems = [
   { to: '/',              icon: LayoutDashboard, label: 'Inicio' },
@@ -34,11 +39,30 @@ function SideNavItem({ to, icon: Icon, label, end }) {
 }
 
 export default function Layout() {
-  const { isAdmin, user, profile } = useAuth()
+  const { isAdmin, user, profile, logout } = useAuth()
   const { getCurrency, setCurrency, currencyPending } = useCurrency()
-  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [drawerOpen,   setDrawerOpen]   = useState(false)
+  const [exitSheet,    setExitSheet]    = useState(false)
+  const location = useLocation()
 
   useServiceNotifications()
+
+  // Intercepta el botón de retroceso solo en la pantalla principal y solo en PWA
+  useEffect(() => {
+    if (!isStandalone()) return
+    if (location.pathname !== '/') return
+
+    // Empuja un estado centinela para que el back button sea interceptable
+    window.history.pushState({ pwaRoot: true }, '')
+
+    const handleBack = () => {
+      window.history.pushState({ pwaRoot: true }, '') // re-empuja para no salir
+      setExitSheet(true)
+    }
+
+    window.addEventListener('popstate', handleBack)
+    return () => window.removeEventListener('popstate', handleBack)
+  }, [location.pathname])
 
   const cur         = getCurrency()
   const initial     = (profile?.apodo || profile?.nombre || user?.email || '?')[0].toUpperCase()
@@ -166,6 +190,49 @@ export default function Layout() {
       </div>
 
       <SideDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
+
+      {/* Hoja de salida — solo en PWA, solo desde la pantalla principal */}
+      {exitSheet && (
+        <div className="fixed inset-0 z-[200] flex items-end justify-center">
+          {/* Fondo */}
+          <div
+            className="absolute inset-0 bg-black/60"
+            onClick={() => setExitSheet(false)}
+          />
+
+          {/* Sheet */}
+          <div className="relative w-full max-w-sm bg-panel border-t border-line rounded-t-2xl p-5 pb-10 space-y-3 animate-[sheet-up_0.25s_ease-out]">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-semibold text-ink">¿Qué deseas hacer?</p>
+              <button onClick={() => setExitSheet(false)} className="text-dim hover:text-ink transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Cerrar sesión */}
+            <button
+              onClick={async () => { setExitSheet(false); await logout() }}
+              className="w-full flex items-center gap-3 p-4 bg-well rounded-xl border border-line hover:border-expense/40 hover:bg-expense/5 transition-colors text-left"
+            >
+              <div className="w-9 h-9 rounded-lg bg-expense/10 flex items-center justify-center shrink-0">
+                <LogOut size={17} className="text-expense" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-ink">Cerrar sesión</p>
+                <p className="text-xs text-dim">Salir de tu cuenta</p>
+              </div>
+            </button>
+
+            {/* Cancelar */}
+            <button
+              onClick={() => setExitSheet(false)}
+              className="w-full py-3 rounded-xl bg-well text-dim text-sm font-medium hover:text-ink transition-colors"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

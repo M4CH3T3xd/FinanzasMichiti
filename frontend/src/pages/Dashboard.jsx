@@ -1,0 +1,534 @@
+import { useMemo, useState, useEffect } from 'react'
+import { format, startOfMonth, endOfMonth, subMonths, isToday, isYesterday } from 'date-fns'
+import { es } from 'date-fns/locale'
+import { Link } from 'react-router-dom'
+import { TrendingUp, TrendingDown, Wallet, ArrowRight, Clock, AlertTriangle, Maximize2, X } from 'lucide-react'
+import {
+  PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
+  ComposedChart, Bar, XAxis, YAxis, Line, CartesianGrid, Legend,
+} from 'recharts'
+import { useTransacciones, usePresupuestos, useServicios } from '../hooks/queries'
+import { useCurrency } from '../context/CurrencyContext'
+import { useSettings } from '../context/SettingsContext'
+import { getServiceIcon, getServiceCatMeta } from '../lib/serviceMeta'
+import { getCategoryMeta } from '../lib/categoryMeta'
+import { daysUntilDue, isPaidThisMonth } from '../utils/serviceDates'
+
+const now = new Date()
+const mesActualFrom = format(startOfMonth(now), 'yyyy-MM-dd')
+const mesActualTo   = format(endOfMonth(now),   'yyyy-MM-dd')
+const mesAntFrom    = format(startOfMonth(subMonths(now, 1)), 'yyyy-MM-dd')
+const mesAntTo      = format(endOfMonth(subMonths(now, 1)),   'yyyy-MM-dd')
+
+function relDate(fechaStr) {
+  const d = new Date(fechaStr + 'T00:00:00')
+  if (isToday(d))     return 'hoy'
+  if (isYesterday(d)) return 'ayer'
+  return format(d, "d MMM", { locale: es })
+}
+
+function pctChange(curr, prev) {
+  if (!prev) return null
+  return ((curr - prev) / prev * 100).toFixed(0)
+}
+
+const CHART_TYPES = [
+  { key: 'dona',   label: 'Categorías' },
+  { key: 'barras', label: '6 meses' },
+]
+
+export default function Dashboard() {
+  const { format: fmt } = useCurrency()
+  const { historyMonths } = useSettings()
+  const [expandDona, setExpandDona] = useState(false)
+  const [chartType, setChartType] = useState(
+    () => localStorage.getItem('dashboard_chart') || 'dona'
+  )
+
+  const handleChartType = (t) => {
+    setChartType(t)
+    localStorage.setItem('dashboard_chart', t)
+  }
+
+  const { data: txActual   = [] } = useTransacciones({ from: mesActualFrom, to: mesActualTo })
+  const { data: txAnterior = [] } = useTransacciones({ from: mesAntFrom,    to: mesAntTo    })
+  const historicFrom = format(startOfMonth(subMonths(now, historyMonths - 1)), 'yyyy-MM-dd')
+  const { data: txHistorico = [] } = useTransacciones({ from: historicFrom, to: mesActualTo })
+  const { data: ultimos    = [] } = useTransacciones({ limit: 5 })
+  const { data: presupuestos = [] } = usePresupuestos()
+  const { data: servicios    = [] } = useServicios()
+
+  const ingresos    = useMemo(() => txActual.filter(t => t.tipo === 'ingreso').reduce((s, t) => s + +t.monto, 0), [txActual])
+  const gastos      = useMemo(() => txActual.filter(t => t.tipo === 'gasto').reduce((s, t) => s + +t.monto, 0),   [txActual])
+  const ingresosAnt = useMemo(() => txAnterior.filter(t => t.tipo === 'ingreso').reduce((s, t) => s + +t.monto, 0), [txAnterior])
+  const gastosAnt   = useMemo(() => txAnterior.filter(t => t.tipo === 'gasto').reduce((s, t) => s + +t.monto, 0),   [txAnterior])
+  const balance     = ingresos - gastos
+
+  const donaData = useMemo(() => {
+    const map = {}
+    txActual.filter(t => t.tipo === 'gasto').forEach(t => {
+      map[t.categoria] = (map[t.categoria] || 0) + +t.monto
+    })
+    return Object.entries(map)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 6)
+  }, [txActual])
+
+  const chartDataMensual = useMemo(() => {
+    // Armar los 6 meses como slots vacíos para que no falten meses sin transacciones
+    const meses = Array.from({ length: historyMonths }, (_, i) => {
+      const d = subMonths(now, historyMonths - 1 - i)
+      return {
+        key: format(d, 'yyyy-MM'),
+        label: format(d, 'MMM', { locale: es }).replace(/^\w/, c => c.toUpperCase()),
+        ingresos: 0,
+        gastos: 0,
+      }
+    })
+    txHistorico.forEach(tx => {
+      const key = tx.fecha.slice(0, 7)
+      const slot = meses.find(m => m.key === key)
+      if (!slot) return
+      if (tx.tipo === 'ingreso') slot.ingresos += +tx.monto
+      if (tx.tipo === 'gasto')   slot.gastos   += +tx.monto
+    })
+    // Balance acumulado mes a mes
+    let acum = 0
+    return meses.map(m => {
+      acum += m.ingresos - m.gastos
+      return { ...m, balanceAcum: acum }
+    })
+  }, [txHistorico, historyMonths])
+
+  const serviciosProximos = useMemo(() =>
+    servicios
+      .filter(s => s.activo && !isPaidThisMonth(s.ultimo_pago))
+      .map(s => ({ ...s, dias: daysUntilDue(s.dia_vencimiento) }))
+      .filter(s => s.dias !== null && s.dias <= 7)
+      .sort((a, b) => a.dias - b.dias),
+    [servicios]
+  )
+
+  const presupuestosCriticos = useMemo(() =>
+    presupuestos
+      .map(p => {
+        const gastado = txActual
+          .filter(t => t.tipo === 'gasto' && t.categoria === p.categoria)
+          .reduce((s, t) => s + +t.monto, 0)
+        return { ...p, gastado, pct: p.limite > 0 ? (gastado / p.limite * 100) : 0 }
+      })
+      .filter(p => p.pct > 0)
+      .sort((a, b) => b.pct - a.pct)
+      .slice(0, 4),
+    [presupuestos, txActual]
+  )
+
+  const mesLabel = format(now, "MMMM yyyy", { locale: es }).replace(/^\w/, c => c.toUpperCase())
+
+  return (
+    <div className="p-4 md:p-6 max-w-7xl mx-auto">
+      <h1 className="text-2xl font-bold text-ink mb-6">{mesLabel}</h1>
+
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6">
+
+        {/* ── COLUMNA IZQUIERDA ── */}
+        <div className="space-y-5">
+
+          {/* Tarjetas resumen */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <SummaryCard
+              label="Ingresos"
+              value={fmt(ingresos)}
+              pct={pctChange(ingresos, ingresosAnt)}
+              good={true}
+              icon={<TrendingUp size={18} />}
+              colorClass="text-income"
+              bgClass="bg-income/10"
+            />
+            <SummaryCard
+              label="Gastos"
+              value={fmt(gastos)}
+              pct={pctChange(gastos, gastosAnt)}
+              good={false}
+              icon={<TrendingDown size={18} />}
+              colorClass="text-expense"
+              bgClass="bg-expense/10"
+            />
+            <SummaryCard
+              label="Balance"
+              value={fmt(balance)}
+              pct={null}
+              good={balance >= 0}
+              icon={<Wallet size={18} />}
+              colorClass={balance >= 0 ? 'text-income' : 'text-expense'}
+              bgClass={balance >= 0 ? 'bg-income/10' : 'bg-expense/10'}
+            />
+          </div>
+
+          {/* Gráfico principal */}
+          {(donaData.length > 0 || txHistorico.length > 0) && (
+            <div className="bg-panel border border-line rounded-xl p-4">
+              {/* Toggle tipo de gráfico */}
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-semibold text-ink">
+                  {chartType === 'dona' ? 'Gastos por categoría' : 'Últimos 6 meses'}
+                </h2>
+                <div className="flex items-center gap-1">
+                  {chartType === 'dona' && donaData.length > 0 && (
+                    <button
+                      onClick={() => setExpandDona(true)}
+                      title="Ver detalle completo"
+                      className="p-1.5 text-dim hover:text-brand-500 hover:bg-brand-500/10 rounded-lg transition-colors"
+                    >
+                      <Maximize2 size={14} />
+                    </button>
+                  )}
+                  <div className="flex gap-1 bg-well rounded-lg p-0.5">
+                    {CHART_TYPES.map(t => (
+                      <button
+                        key={t.key}
+                        onClick={() => handleChartType(t.key)}
+                        className={`px-2.5 py-1 text-xs rounded-md transition-colors ${
+                          chartType === t.key
+                            ? 'bg-brand-500 text-white'
+                            : 'text-dim hover:text-ink'
+                        }`}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Dona */}
+              {chartType === 'dona' && donaData.length > 0 && (
+                <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
+                  {/* Donut clickeable */}
+                  <button
+                    onClick={() => setExpandDona(true)}
+                    className="relative w-40 h-40 shrink-0 group focus:outline-none"
+                    title="Ver detalle completo"
+                  >
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={donaData} cx="50%" cy="50%"
+                          innerRadius={44} outerRadius={68} paddingAngle={3} dataKey="value">
+                          {donaData.map(entry => (
+                            <Cell key={entry.name} fill={getCategoryMeta(entry.name).color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          formatter={v => fmt(v)}
+                          contentStyle={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 8 }}
+                          labelStyle={{ color: 'var(--ink)' }}
+                          itemStyle={{ color: 'var(--dim)' }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    {/* Hint en el hueco central */}
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="flex flex-col items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Maximize2 size={14} className="text-brand-500" />
+                        <span className="text-[9px] text-brand-500 font-medium">Ver más</span>
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Top 3 a la derecha */}
+                  <div className="flex flex-col gap-3 w-full">
+                    {donaData.slice(0, 3).map((entry, i) => {
+                      const meta = getCategoryMeta(entry.name)
+                      const Icon = meta.icon
+                      const pct  = gastos > 0 ? (entry.value / gastos * 100) : 0
+                      return (
+                        <div key={entry.name} className="flex items-center gap-2.5">
+                          <span className="text-[10px] font-bold text-dim w-3 shrink-0 text-center">{i + 1}</span>
+                          <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                            style={{ background: meta.color + '22', color: meta.color }}>
+                            <Icon size={13} />
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs text-ink truncate">{entry.name}</span>
+                              <span className="text-[10px] text-dim shrink-0 ml-1">{pct.toFixed(0)}%</span>
+                            </div>
+                            <div className="h-1 bg-well rounded-full overflow-hidden">
+                              <div className="h-full rounded-full" style={{ width: `${pct}%`, background: meta.color }} />
+                            </div>
+                          </div>
+                          <span className="text-xs font-semibold text-ink shrink-0">{fmt(entry.value)}</span>
+                        </div>
+                      )
+                    })}
+
+                    {/* Pista visual: siempre visible */}
+                    <button
+                      onClick={() => setExpandDona(true)}
+                      className="flex items-center gap-1.5 text-xs text-brand-500 hover:text-brand-600 transition-colors mt-1 group/btn"
+                    >
+                      <Maximize2 size={11} className="group-hover/btn:scale-110 transition-transform" />
+                      {donaData.length > 3
+                        ? `Ver las ${donaData.length} categorías`
+                        : 'Ver detalle completo'}
+                      <ArrowRight size={11} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Modal detalle dona */}
+              {expandDona && (
+                <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+                  <div className="bg-panel border border-line rounded-t-2xl sm:rounded-2xl w-full sm:max-w-sm p-5 max-h-[90vh] overflow-y-auto">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-semibold text-ink">Gastos por categoría</h3>
+                      <button onClick={() => setExpandDona(false)} className="text-dim hover:text-ink transition-colors">
+                        <X size={20} />
+                      </button>
+                    </div>
+
+                    {/* Dona grande */}
+                    <div className="w-44 h-44 mx-auto mb-5">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie data={donaData} cx="50%" cy="50%"
+                            innerRadius={48} outerRadius={80} paddingAngle={3} dataKey="value">
+                            {donaData.map(entry => (
+                              <Cell key={entry.name} fill={getCategoryMeta(entry.name).color} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            formatter={v => fmt(v)}
+                            contentStyle={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 8 }}
+                            labelStyle={{ color: 'var(--ink)' }}
+                            itemStyle={{ color: 'var(--dim)' }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    {/* Lista completa */}
+                    <div className="space-y-3">
+                      {donaData.map(entry => {
+                        const meta = getCategoryMeta(entry.name)
+                        const Icon = meta.icon
+                        const pct  = gastos > 0 ? (entry.value / gastos * 100) : 0
+                        return (
+                          <div key={entry.name} className="flex items-center gap-3">
+                            <span className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                              style={{ background: meta.color + '22', color: meta.color }}>
+                              <Icon size={15} />
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-sm text-ink truncate">{entry.name}</span>
+                                <span className="text-xs text-dim shrink-0 ml-2">{pct.toFixed(1)}%</span>
+                              </div>
+                              <div className="h-1.5 bg-well rounded-full overflow-hidden">
+                                <div className="h-full rounded-full transition-all duration-500"
+                                  style={{ width: `${pct}%`, background: meta.color }} />
+                              </div>
+                            </div>
+                            <span className="text-sm font-semibold text-ink shrink-0">{fmt(entry.value)}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    <div className="mt-4 pt-4 border-t border-line flex items-center justify-between">
+                      <span className="text-sm text-dim">Total gastos del mes</span>
+                      <span className="text-sm font-bold text-ink">{fmt(gastos)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Mensual: barras + línea acumulada */}
+              {(chartType === 'barras' || chartType === 'area') && (
+                <ResponsiveContainer width="100%" height={180}>
+                  <ComposedChart data={chartDataMensual} margin={{ top: 16, right: 16, left: 0, bottom: 0 }} barCategoryGap="25%">
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1c1c2e" vertical={false} />
+                    <XAxis dataKey="label" tick={{ fill: '#5a5a7a', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis yAxisId="bars" hide />
+                    <YAxis yAxisId="line" orientation="right" hide />
+                    <Tooltip
+                      contentStyle={{ background: '#111118', border: '1px solid #1c1c2e', borderRadius: 8, fontSize: 12 }}
+                      labelStyle={{ color: '#eaeaf0', marginBottom: 4 }}
+                      cursor={{ fill: '#ffffff06' }}
+                      formatter={(v, name) => [
+                        fmt(v),
+                        name === 'ingresos' ? 'Ingresos' : name === 'gastos' ? 'Gastos' : 'Balance acum.',
+                      ]}
+                      itemStyle={{ fontSize: 12 }}
+                    />
+                    <Legend
+                      iconType="circle" iconSize={8}
+                      formatter={v => v === 'ingresos' ? 'Ingresos' : v === 'gastos' ? 'Gastos' : 'Balance acum.'}
+                      wrapperStyle={{ fontSize: 11, color: '#5a5a7a', paddingTop: 8 }}
+                    />
+                    <Bar yAxisId="bars" dataKey="ingresos" fill="#00e676" fillOpacity={0.85} radius={[3, 3, 0, 0]} maxBarSize={28} />
+                    <Bar yAxisId="bars" dataKey="gastos"   fill="#ff4d6d" fillOpacity={0.85} radius={[3, 3, 0, 0]} maxBarSize={28} />
+                    <Line
+                      yAxisId="line"
+                      dataKey="balanceAcum"
+                      stroke="#7c6af7"
+                      strokeWidth={2}
+                      dot={{ r: 3, fill: '#7c6af7', strokeWidth: 0 }}
+                      activeDot={{ r: 5, fill: '#7c6af7' }}
+                      type="monotone"
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          )}
+
+          {/* Últimos movimientos */}
+          <div className="bg-panel border border-line rounded-xl p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-ink">Últimos movimientos</h2>
+              <Link to="/transacciones" className="flex items-center gap-1 text-xs text-brand-500 hover:text-brand-600 transition-colors">
+                Ver todos <ArrowRight size={12} />
+              </Link>
+            </div>
+            {ultimos.length === 0
+              ? <p className="text-dim text-sm text-center py-6">Sin movimientos aún</p>
+              : (
+                <div className="space-y-3">
+                  {ultimos.map(tx => {
+                    const meta = getCategoryMeta(tx.categoria)
+                    const Icon = meta.icon
+                    return (
+                      <div key={tx.id} className="flex items-center gap-3">
+                        <span
+                          className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+                          style={{ background: meta.color + '22', color: meta.color }}
+                        >
+                          <Icon size={16} />
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-ink truncate">{tx.descripcion || tx.categoria}</p>
+                          <p className="text-xs text-dim">{tx.categoria} · {relDate(tx.fecha)}</p>
+                        </div>
+                        <span className={`text-sm font-semibold flex-shrink-0 ${tx.tipo === 'ingreso' ? 'text-income' : 'text-expense'}`}>
+                          {tx.tipo === 'ingreso' ? '+' : '-'}{fmt(tx.monto)}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            }
+          </div>
+        </div>
+
+        {/* ── COLUMNA DERECHA ── */}
+        <div className="space-y-5">
+
+          {/* Servicios próximos */}
+          <div className="bg-panel border border-line rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-4">
+              <Clock size={15} className="text-dim" />
+              <h2 className="text-sm font-semibold text-ink">Servicios próximos</h2>
+            </div>
+            {serviciosProximos.length === 0
+              ? <p className="text-dim text-sm text-center py-4">Sin vencimientos en 7 días</p>
+              : (
+                <div className="space-y-3">
+                  {serviciosProximos.map(s => {
+                    const catMeta = getServiceCatMeta(s.categoria)
+                    const Icon    = getServiceIcon(s.icono || catMeta.icon)
+                    const color   = catMeta.color
+                    return (
+                      <div key={s.id} className="flex items-center gap-2.5">
+                        <span className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                          style={{ background: color + '22', color }}>
+                          <Icon size={15} />
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-ink truncate">{s.nombre}</p>
+                          <p className="text-xs text-dim">{fmt(s.monto)}</p>
+                        </div>
+                        <span className={`text-xs font-semibold px-2 py-1 rounded-full shrink-0 ${
+                          s.dias === 0 ? 'bg-expense/20 text-expense' :
+                          s.dias <= 2  ? 'bg-yellow-500/20 text-yellow-400' :
+                                         'bg-brand-500/20 text-brand-500'
+                        }`}>
+                          {s.dias === 0 ? 'hoy' : `${s.dias}d`}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            }
+          </div>
+
+          {/* Presupuestos críticos */}
+          {presupuestosCriticos.length > 0 && (
+            <div className="bg-panel border border-line rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <AlertTriangle size={15} className="text-dim" />
+                <h2 className="text-sm font-semibold text-ink">Presupuestos</h2>
+              </div>
+              <div className="space-y-4">
+                {presupuestosCriticos.map(p => {
+                  const meta  = getCategoryMeta(p.categoria)
+                  const Icon  = meta.icon
+                  const pctCl = Math.min(p.pct, 100)
+                  const color = p.pct >= 90 ? 'var(--expense)' : p.pct >= 70 ? '#eab308' : meta.color
+                  return (
+                    <div key={p.id}>
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <span className="text-xs text-ink truncate">{p.categoria}</span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-xs font-medium" style={{ color }}>{Math.round(p.pct)}%</span>
+                          <span className="w-6 h-6 rounded-md flex items-center justify-center"
+                            style={{ background: color + '22', color }}>
+                            <Icon size={12} />
+                          </span>
+                        </div>
+                      </div>
+                      <div className="h-1.5 bg-well rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-500"
+                          style={{ width: `${pctCl}%`, background: color }}
+                        />
+                      </div>
+                      <p className="text-xs text-dim mt-1">{fmt(p.gastado)} de {fmt(p.limite)}</p>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SummaryCard({ label, value, pct, good, icon, colorClass, bgClass }) {
+  const pctNum = Number(pct)
+  const isPositive = pctNum >= 0
+  const isGoodChange = good ? isPositive : !isPositive
+  return (
+    <div className="bg-panel border border-line rounded-xl p-4 flex items-start gap-3">
+      <span className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${bgClass} ${colorClass}`}>
+        {icon}
+      </span>
+      <div className="min-w-0">
+        <p className="text-xs text-dim mb-0.5">{label}</p>
+        <p className="text-lg font-bold text-ink leading-tight truncate">{value}</p>
+        {pct !== null && (
+          <p className={`text-xs mt-0.5 ${isGoodChange ? 'text-income' : 'text-expense'}`}>
+            {isPositive ? '+' : ''}{pct}% vs mes ant.
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}

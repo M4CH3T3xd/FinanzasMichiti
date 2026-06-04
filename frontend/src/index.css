@@ -1,0 +1,130 @@
+@import "tailwindcss";
+
+/* Tailwind v4: bridge CSS vars → utility classes */
+@theme inline {
+  --color-canvas:    var(--canvas);
+  --color-panel:     var(--panel);
+  --color-well:      var(--well);
+  --color-line:      var(--line);
+  --color-ink:       var(--ink);
+  --color-dim:       var(--dim);
+  --color-brand-50:  var(--brand-50);
+  --color-brand-500: var(--brand-500);
+  --color-brand-600: var(--brand-600);
+  --color-income:    var(--income);
+  --color-expense:   var(--expense);
+}
+
+/* ── DARK (default) ──────────────────────────────── */
+:root,
+[data-theme="dark"] {
+  --canvas:    #08080f;
+  --panel:     #111118;
+  --well:      #0d0d16;
+  --line:      #1c1c2e;
+  --ink:       #eaeaf0;
+  --dim:       #5a5a7a;
+  --brand-50:  #ede9fe;
+  --brand-500: #7c6af7;
+  --brand-600: #6b5ce7;
+  --income:    #00e676;
+  --expense:   #ff4d6d;
+  color-scheme: dark;
+}
+
+/* ── MONO ────────────────────────────────────────── */
+[data-theme="mono"] {
+  --canvas:    #0a0a0a;
+  --panel:     #141414;
+  --well:      #242424;
+  --line:      #2a2a2a;
+  --ink:       #f5f5f5;
+  --dim:       #737373;
+  --brand-50:  #fafafa;
+  --brand-500: #525252;
+  --brand-600: #404040;
+  --income:    #a3a3a3;
+  --expense:   #737373;
+  color-scheme: dark;
+}
+
+/* ── PINK ────────────────────────────────────────── */
+[data-theme="pink"] {
+  --canvas:    #18070f;
+  --panel:     #2d0f1e;
+  --well:      #3d1528;
+  --line:      #6b2142;
+  --ink:       #fdf2f8;
+  --dim:       #f9a8d4;
+  --brand-50:  #fdf2f8;
+  --brand-500: #ec4899;
+  --brand-600: #db2777;
+  --income:    #86efac;
+  --expense:   #fca5a5;
+  color-scheme: dark;
+}
+
+/* ── LIGHT ───────────────────────────────────────── */
+[data-theme="light"] {
+  --canvas:    #f1f5f9;
+  --panel:     #ffffff;
+  --well:      #f8fafc;
+  --line:      #e2e8f0;
+  --ink:       #0f172a;
+  --dim:       #64748b;
+  --brand-50:  #ede9fe;
+  --brand-500: #7c6af7;
+  --brand-600: #6b5ce7;
+  --income:    #16a34a;
+  --expense:   #e11d48;
+  color-scheme: light;
+}
+
+/* ── BASE ────────────────────────────────────────── */
+html, body {
+  overscroll-behavior: none;
+  touch-action: pan-x pan-y;
+}
+
+@layer base {
+  body {
+    background-color: var(--canvas);
+    color: var(--ink);
+    min-height: 100vh;
+    margin: 0;
+  }
+  * { box-sizing: border-box; }
+}
+
+@layer utilities {
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+}
+
+/* ── COMPACT MODE ─────────────────────────────────── */
+[data-compact="true"] .space-y-2 > * + * { margin-top: 0.25rem; }
+[data-compact="true"] .space-y-3 > * + * { margin-top: 0.25rem; }
+[data-compact="true"] .space-y-2 > * > .p-3,
+[data-compact="true"] .space-y-2 > .p-3,
+[data-compact="true"] .space-y-3 > .p-3 {
+  padding-top:    0.375rem;
+  padding-bottom: 0.375rem;
+}
+
+@keyframes dropdown-bouncy {
+  0%   { opacity: 0; transform: scale(0.88) translateY(-6px); }
+  55%  { opacity: 1; transform: scale(1.04) translateY(2px); }
+  80%  { transform: scale(0.98) translateY(-1px); }
+  100% { transform: scale(1) translateY(0); }
+}
+.dropdown-bouncy {
+  animation: dropdown-bouncy 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  transform-origin: top left;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.toast-enter {
+  animation: toast-in 0.18s ease-out;
+}

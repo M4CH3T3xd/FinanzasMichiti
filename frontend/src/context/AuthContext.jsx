@@ -55,11 +55,16 @@ export function AuthProvider({ children }) {
       setLoading(false)
     })
 
-    // Valida el token en background — solo cierra sesión si el token está realmente expirado,
-    // no por errores de red (frecuente al reabrir una PWA sin conexión inmediata)
-    supabase.auth.getUser().then(({ data: { user: u }, error }) => {
-      const isAuthError = error?.status === 401 || error?.message?.includes('JWT')
-      if (isAuthError) {
+    // Valida el token en background — solo cierra sesión si el token está definitivamente
+    // inválido (401 de la API o sesión no encontrada). Errores de red se ignoran:
+    // son frecuentes al reabrir la PWA en Android antes de que haya conexión.
+    supabase.auth.getUser().then(({ error }) => {
+      if (!error) return
+      const isRealAuthError =
+        error?.status === 401 ||
+        error?.code === 'invalid_jwt' ||
+        error?.code === 'session_not_found'
+      if (isRealAuthError) {
         setUser(null)
         setRole(null)
         sessionStorage.clear()

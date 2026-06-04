@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react'
 import { Outlet, NavLink, useLocation, useBlocker } from 'react-router-dom'
 import {
   LayoutDashboard, ArrowLeftRight, Target, CreditCard, Repeat, ShieldCheck,
-  LogOut, X,
+  LogOut, X, RefreshCw,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useCurrency, CURRENCIES } from '../context/CurrencyContext'
 import { useServiceNotifications } from '../hooks/useServiceNotifications'
+import { queryClient } from '../lib/queryClient'
 import SideDrawer from './SideDrawer'
 
 const isStandalone = () =>
@@ -64,7 +65,7 @@ export default function Layout() {
   const displayName = profile?.apodo || profile?.nombre || user?.email?.split('@')[0]
 
   return (
-    <div className="flex flex-col md:flex-row h-screen bg-canvas overflow-hidden">
+    <div className="flex flex-col md:flex-row h-dvh bg-canvas overflow-hidden">
 
       {/* Picker de moneda para usuarios nuevos de Google */}
       {currencyPending && (
@@ -134,6 +135,13 @@ export default function Layout() {
         <header className="flex-shrink-0 flex md:hidden items-center justify-between px-4 py-3 bg-panel border-b border-line">
           <span className="font-bold text-lg text-brand-500">💰 Finanzas</span>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => queryClient.invalidateQueries()}
+              className="p-2 rounded-lg text-dim hover:text-ink transition-colors"
+              aria-label="Recargar datos"
+            >
+              <RefreshCw size={19} />
+            </button>
             {isAdmin && (
               <NavLink
                 to="/admin"

@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { CURRENCIES } from '../context/CurrencyContext'
+import { useAuth } from '../context/AuthContext'
 
 function withTimeout(promise, ms = 12000) {
   return Promise.race([
@@ -34,6 +35,14 @@ export default function Login() {
   const [success,  setSuccess]  = useState(false)
   const [loading,  setLoading]  = useState(false)
   const navigate = useNavigate()
+  const { user } = useAuth()
+
+  // Redirige en cuanto el estado de auth confirma que el usuario está autenticado.
+  // Esto evita la condición de carrera donde navigate('/') se llama antes de que
+  // React haya procesado el setUser del onAuthStateChange de Supabase.
+  useEffect(() => {
+    if (user) navigate('/', { replace: true })
+  }, [user, navigate])
 
   function switchMode(m) {
     setMode(m); setError(''); setSuccess(false); setConfirm(''); setStep(1)
@@ -44,7 +53,7 @@ export default function Login() {
     try {
       const { error } = await withTimeout(supabase.auth.signInWithPassword({ email, password }))
       if (error) setError('Email o contraseña incorrectos')
-      else navigate('/', { replace: true })
+      // Si no hay error, onAuthStateChange dispara setUser → useEffect redirige a '/'
     } catch (err) {
       setError(err.message === 'timeout' ? 'El servidor tardó demasiado. Intenta de nuevo.' : 'Error al conectar')
     } finally {

@@ -2,6 +2,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
+function withTimeout(promise, ms = 10000) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
+  ])
+}
+
 // ── Query keys ────────────────────────────────────────────────────────────────
 export const keys = {
   profile:       (uid)          => ['profile', uid],
@@ -34,12 +41,9 @@ export function useUpdateUserRole() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ id, role }) => {
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .update({ role })
-        .eq('id', id)
-        .select()
-        .single()
+      const { data, error } = await withTimeout(
+        supabase.from('user_profiles').update({ role }).eq('id', id).select().single()
+      )
       if (error) throw error
       return data
     },
@@ -70,12 +74,9 @@ export function useUpdateProfile() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (updates) => {
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .update(updates)
-        .eq('id', user.id)
-        .select()
-        .single()
+      const { data, error } = await withTimeout(
+        supabase.from('user_profiles').update(updates).eq('id', user.id).select().single()
+      )
       if (error) throw error
       return data
     },
@@ -118,11 +119,9 @@ export function useAddTransaccion() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (tx) => {
-      const { data, error } = await supabase
-        .from('transacciones')
-        .insert({ ...tx, user_id: user.id })
-        .select()
-        .single()
+      const { data, error } = await withTimeout(
+        supabase.from('transacciones').insert({ ...tx, user_id: user.id }).select().single()
+      )
       if (error) throw error
       return data
     },
@@ -135,12 +134,9 @@ export function useUpdateTransaccion() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ id, ...updates }) => {
-      const { data, error } = await supabase
-        .from('transacciones')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single()
+      const { data, error } = await withTimeout(
+        supabase.from('transacciones').update(updates).eq('id', id).select().single()
+      )
       if (error) throw error
       return data
     },
@@ -153,7 +149,9 @@ export function useDeleteTransaccion() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (id) => {
-      const { error } = await supabase.from('transacciones').delete().eq('id', id)
+      const { error } = await withTimeout(
+        supabase.from('transacciones').delete().eq('id', id)
+      )
       if (error) throw error
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['transacciones', user.id] }),
@@ -182,11 +180,12 @@ export function useUpsertPresupuesto() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (presupuesto) => {
-      const { data, error } = await supabase
-        .from('presupuestos')
-        .upsert({ ...presupuesto, user_id: user.id }, { onConflict: 'user_id,categoria' })
-        .select()
-        .single()
+      const { data, error } = await withTimeout(
+        supabase.from('presupuestos')
+          .upsert({ ...presupuesto, user_id: user.id }, { onConflict: 'user_id,categoria' })
+          .select()
+          .single()
+      )
       if (error) throw error
       return data
     },
@@ -199,7 +198,9 @@ export function useDeletePresupuesto() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (id) => {
-      const { error } = await supabase.from('presupuestos').delete().eq('id', id)
+      const { error } = await withTimeout(
+        supabase.from('presupuestos').delete().eq('id', id)
+      )
       if (error) throw error
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.presupuestos(user.id) }),
@@ -229,11 +230,9 @@ export function useAddDeuda() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (deuda) => {
-      const { data, error } = await supabase
-        .from('deudas')
-        .insert({ ...deuda, user_id: user.id })
-        .select()
-        .single()
+      const { data, error } = await withTimeout(
+        supabase.from('deudas').insert({ ...deuda, user_id: user.id }).select().single()
+      )
       if (error) throw error
       return data
     },
@@ -246,12 +245,9 @@ export function useUpdateDeuda() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ id, ...updates }) => {
-      const { data, error } = await supabase
-        .from('deudas')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single()
+      const { data, error } = await withTimeout(
+        supabase.from('deudas').update(updates).eq('id', id).select().single()
+      )
       if (error) throw error
       return data
     },
@@ -264,7 +260,9 @@ export function useDeleteDeuda() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (id) => {
-      const { error } = await supabase.from('deudas').delete().eq('id', id)
+      const { error } = await withTimeout(
+        supabase.from('deudas').delete().eq('id', id)
+      )
       if (error) throw error
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.deudas(user.id) }),
@@ -294,11 +292,9 @@ export function useAddServicio() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (servicio) => {
-      const { data, error } = await supabase
-        .from('servicios')
-        .insert({ ...servicio, user_id: user.id })
-        .select()
-        .single()
+      const { data, error } = await withTimeout(
+        supabase.from('servicios').insert({ ...servicio, user_id: user.id }).select().single()
+      )
       if (error) throw error
       return data
     },
@@ -311,12 +307,9 @@ export function useUpdateServicio() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ id, ...updates }) => {
-      const { data, error } = await supabase
-        .from('servicios')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single()
+      const { data, error } = await withTimeout(
+        supabase.from('servicios').update(updates).eq('id', id).select().single()
+      )
       if (error) throw error
       return data
     },
@@ -329,7 +322,9 @@ export function useDeleteServicio() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (id) => {
-      const { error } = await supabase.from('servicios').delete().eq('id', id)
+      const { error } = await withTimeout(
+        supabase.from('servicios').delete().eq('id', id)
+      )
       if (error) throw error
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.servicios(user.id) }),
@@ -359,11 +354,9 @@ export function useAddMeta() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (meta) => {
-      const { data, error } = await supabase
-        .from('metas')
-        .insert({ ...meta, user_id: user.id })
-        .select()
-        .single()
+      const { data, error } = await withTimeout(
+        supabase.from('metas').insert({ ...meta, user_id: user.id }).select().single()
+      )
       if (error) throw error
       return data
     },
@@ -376,12 +369,9 @@ export function useUpdateMeta() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ id, ...updates }) => {
-      const { data, error } = await supabase
-        .from('metas')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single()
+      const { data, error } = await withTimeout(
+        supabase.from('metas').update(updates).eq('id', id).select().single()
+      )
       if (error) throw error
       return data
     },
@@ -394,7 +384,9 @@ export function useDeleteMeta() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (id) => {
-      const { error } = await supabase.from('metas').delete().eq('id', id)
+      const { error } = await withTimeout(
+        supabase.from('metas').delete().eq('id', id)
+      )
       if (error) throw error
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.metas(user.id) }),

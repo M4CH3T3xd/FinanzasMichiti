@@ -39,7 +39,7 @@ export function AuthProvider({ children }) {
   }, [user])
 
   useEffect(() => {
-    const timeout = setTimeout(() => setLoading(false), 5000)
+    const timeout = setTimeout(() => setLoading(false), 8000)
 
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       try {

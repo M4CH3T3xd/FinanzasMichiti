@@ -4,6 +4,13 @@ import { Eye, EyeOff } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { CURRENCIES } from '../context/CurrencyContext'
 
+function withTimeout(promise, ms = 12000) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
+  ])
+}
+
 function GoogleIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 48 48" fill="none">
@@ -34,20 +41,30 @@ export default function Login() {
 
   async function handleLogin(e) {
     e.preventDefault(); setError(''); setLoading(true)
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) setError('Email o contraseña incorrectos')
-    else navigate('/')
-    setLoading(false)
+    try {
+      const { error } = await withTimeout(supabase.auth.signInWithPassword({ email, password }))
+      if (error) setError('Email o contraseña incorrectos')
+      else navigate('/', { replace: true })
+    } catch (err) {
+      setError(err.message === 'timeout' ? 'El servidor tardó demasiado. Intenta de nuevo.' : 'Error al conectar')
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function handleGoogle() {
     setError(''); setLoading(true)
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: window.location.origin },
-    })
-    if (error) { setError('Error al conectar con Google'); setLoading(false) }
-    // Si no hay error, el navegador redirige a Google — no se necesita hacer nada más
+    try {
+      const { error } = await withTimeout(supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.origin },
+      }), 8000)
+      if (error) { setError('Error al conectar con Google'); setLoading(false) }
+      // Si no hay error, el navegador redirige a Google — loading queda true intencionalmente
+    } catch (err) {
+      setError(err.message === 'timeout' ? 'El servidor tardó demasiado. Intenta de nuevo.' : 'Error al conectar con Google')
+      setLoading(false)
+    }
   }
 
   function handleNextStep(e) {
@@ -59,22 +76,32 @@ export default function Login() {
 
   async function handleSignup(e) {
     e.preventDefault(); setError(''); setLoading(true)
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { currency } },
-    })
-    if (error) {
-      setError(error.message)
-    } else if (data.user) {
-      await supabase.from('user_profiles').upsert(
-        { id: data.user.id, email, role: 'usuario', currency },
-        { onConflict: 'id' }
-      )
-      localStorage.setItem('currency', currency)
-      setSuccess(true)
+    try {
+      const { data, error } = await withTimeout(supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { currency } },
+      }))
+      if (error) {
+        setError(error.message)
+        return
+      }
+      if (data.user) {
+        await withTimeout(
+          supabase.from('user_profiles').upsert(
+            { id: data.user.id, email, role: 'usuario', currency },
+            { onConflict: 'id' }
+          ),
+          8000
+        )
+        localStorage.setItem('currency', currency)
+        setSuccess(true)
+      }
+    } catch (err) {
+      setError(err.message === 'timeout' ? 'El servidor tardó demasiado. Intenta de nuevo.' : err.message ?? 'Error al crear cuenta')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   if (success) {

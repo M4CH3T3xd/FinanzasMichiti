@@ -1,12 +1,18 @@
-import { useState } from 'react'
-import { Outlet, NavLink } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { Outlet, NavLink, useLocation, useBlocker } from 'react-router-dom'
 import {
   LayoutDashboard, ArrowLeftRight, Target, CreditCard, Repeat, ShieldCheck,
+  LogOut, X, RefreshCw,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useCurrency, CURRENCIES } from '../context/CurrencyContext'
 import { useServiceNotifications } from '../hooks/useServiceNotifications'
+import { queryClient } from '../lib/queryClient'
 import SideDrawer from './SideDrawer'
+
+const isStandalone = () =>
+  window.matchMedia('(display-mode: standalone)').matches ||
+  window.navigator.standalone === true
 
 const navItems = [
   { to: '/',              icon: LayoutDashboard, label: 'Inicio' },
@@ -34,18 +40,32 @@ function SideNavItem({ to, icon: Icon, label, end }) {
 }
 
 export default function Layout() {
-  const { isAdmin, user, profile } = useAuth()
+  const { isAdmin, user, profile, logout } = useAuth()
   const { getCurrency, setCurrency, currencyPending } = useCurrency()
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [exitSheet,  setExitSheet]  = useState(false)
+  const location = useLocation()
 
   useServiceNotifications()
+
+  // useBlocker intercepta la navegación ANTES de que React Router la ejecute.
+  // Solo bloquea cuando: PWA standalone + estamos en / + es un POP (back button)
+  const blocker = useBlocker(({ currentLocation, historyAction }) =>
+    isStandalone() &&
+    currentLocation.pathname === '/' &&
+    historyAction === 'POP'
+  )
+
+  useEffect(() => {
+    if (blocker.state === 'blocked') setExitSheet(true)
+  }, [blocker.state])
 
   const cur         = getCurrency()
   const initial     = (profile?.apodo || profile?.nombre || user?.email || '?')[0].toUpperCase()
   const displayName = profile?.apodo || profile?.nombre || user?.email?.split('@')[0]
 
   return (
-    <div className="flex flex-col md:flex-row h-screen bg-canvas overflow-hidden">
+    <div className="flex flex-col md:flex-row h-dvh bg-canvas overflow-hidden">
 
       {/* Picker de moneda para usuarios nuevos de Google */}
       {currencyPending && (
@@ -115,6 +135,13 @@ export default function Layout() {
         <header className="flex-shrink-0 flex md:hidden items-center justify-between px-4 py-3 bg-panel border-b border-line">
           <span className="font-bold text-lg text-brand-500">💰 Finanzas</span>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => queryClient.invalidateQueries()}
+              className="p-2 rounded-lg text-dim hover:text-ink transition-colors"
+              aria-label="Recargar datos"
+            >
+              <RefreshCw size={19} />
+            </button>
             {isAdmin && (
               <NavLink
                 to="/admin"
@@ -166,6 +193,53 @@ export default function Layout() {
       </div>
 
       <SideDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
+
+      {/* Hoja de salida — solo en PWA, solo desde la pantalla principal */}
+      {exitSheet && (
+        <div className="fixed inset-0 z-[200] flex items-end justify-center">
+          {/* Fondo */}
+          <div
+            className="absolute inset-0 bg-black/60"
+            onClick={() => setExitSheet(false)}
+          />
+
+          {/* Sheet */}
+          <div className="relative w-full max-w-sm bg-panel border-t border-line rounded-t-2xl p-5 pb-10 space-y-3 animate-[sheet-up_0.25s_ease-out]">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-semibold text-ink">¿Qué deseas hacer?</p>
+              <button onClick={() => setExitSheet(false)} className="text-dim hover:text-ink transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Cerrar sesión */}
+            <button
+              onClick={async () => {
+                blocker.reset?.()   // cancela la navegación, se queda en /
+                setExitSheet(false)
+                await logout()      // cierra sesión → PrivateRoute redirige a /login
+              }}
+              className="w-full flex items-center gap-3 p-4 bg-well rounded-xl border border-line hover:border-expense/40 hover:bg-expense/5 transition-colors text-left"
+            >
+              <div className="w-9 h-9 rounded-lg bg-expense/10 flex items-center justify-center shrink-0">
+                <LogOut size={17} className="text-expense" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-ink">Cerrar sesión</p>
+                <p className="text-xs text-dim">Salir de tu cuenta</p>
+              </div>
+            </button>
+
+            {/* Cancelar */}
+            <button
+              onClick={() => { blocker.reset?.(); setExitSheet(false) }}
+              className="w-full py-3 rounded-xl bg-well text-dim text-sm font-medium hover:text-ink transition-colors"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

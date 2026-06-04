@@ -39,7 +39,7 @@ export function AuthProvider({ children }) {
   }, [user])
 
   useEffect(() => {
-    const timeout = setTimeout(() => setLoading(false), 5000)
+    const timeout = setTimeout(() => setLoading(false), 8000)
 
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       try {
@@ -55,15 +55,17 @@ export function AuthProvider({ children }) {
       setLoading(false)
     })
 
-    // Validate token in background — sign out silently if expired
+    // Valida el token en background — solo cierra sesión si el token está realmente expirado,
+    // no por errores de red (frecuente al reabrir una PWA sin conexión inmediata)
     supabase.auth.getUser().then(({ data: { user: u }, error }) => {
-      if (error || !u) {
+      const isAuthError = error?.status === 401 || error?.message?.includes('JWT')
+      if (isAuthError) {
         setUser(null)
         setRole(null)
         sessionStorage.clear()
         supabase.auth.signOut()
       }
-    }).catch(() => {})
+    }).catch(() => {}) // error de red — ignorar, la sesión de caché sigue válida
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       setUser(session?.user ?? null)
